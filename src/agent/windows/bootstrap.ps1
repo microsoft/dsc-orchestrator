@@ -42,11 +42,24 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $DscRoot = [System.IO.Path]::GetFullPath($DscRoot)
+$PackageRoot = [System.IO.Path]::GetFullPath($PackageRoot)
+$securityModulePath = @(
+    (Join-Path $PackageRoot 'AppModules\Dsc.Security.psm1')
+    (Join-Path $PackageRoot 'Modules\Dsc.Security.psm1')
+    (Join-Path $PSScriptRoot 'AppModules\Dsc.Security.psm1')
+    (Join-Path $PSScriptRoot 'Modules\Dsc.Security.psm1')
+) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    Select-Object -First 1
+if (-not $securityModulePath) {
+    throw "Dsc.Security.psm1 was not found in PackageRoot '$PackageRoot' or beside bootstrap.ps1."
+}
+Import-Module -Name $securityModulePath -DisableNameChecking -ErrorAction Stop
+Dsc.Security\Initialize-DscOrchestratorRoot -Path $DscRoot
+
 if ([string]::IsNullOrWhiteSpace($PackageRoot) -or
     -not (Test-Path -LiteralPath $PackageRoot -PathType Container)) {
     throw "PackageRoot '$PackageRoot' is not a directory. Use Install-VmApplicationPackage.ps1 for archive-based delivery."
 }
-$PackageRoot = [System.IO.Path]::GetFullPath($PackageRoot)
 $manifestPath = Join-Path $PackageRoot 'manifest.json'
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "PackageRoot '$PackageRoot' is missing manifest.json."
@@ -107,20 +120,16 @@ function ConvertTo-WindowsCommandLineArgument {
     return $builder.ToString()
 }
 
-$logsRoot = Join-Path $DscRoot 'logs'
-$currentLink     = Join-Path $DscRoot 'current'
-$stagingRoot     = Join-Path $DscRoot 'staging'
-$versionDir      = Join-Path $stagingRoot $Version
-$modulesTarget   = Join-Path $versionDir 'modules'
-$waitTimeoutSec  = 1800
-$bootstrapJsonl  = Join-Path $logsRoot 'bootstrap.jsonl'
+$logsRoot = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath $DscRoot -Name 'logs'
+$stagingRoot = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath $DscRoot -Name 'staging'
+$currentLink = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath $DscRoot -Name 'current'
+$versionDir = Join-Path $stagingRoot $Version
+$modulesTarget = Join-Path $versionDir 'modules'
+$waitTimeoutSec = 1800
+$bootstrapJsonl = Join-Path $logsRoot 'bootstrap.jsonl'
 $pwshSource  = ''
 $pwshPath    = ''
 $pwshVersion = ''
-
-if (-not (Test-Path -LiteralPath $logsRoot)) {
-    New-Item -ItemType Directory -Path $logsRoot -Force -ErrorAction Stop | Out-Null
-}
 
 $sourceDir = $PackageRoot
 
@@ -276,7 +285,7 @@ try {
             Where-Object { $_.FullName -ne $versionDir } |
             ForEach-Object {
                 try {
-                    Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
+                    Dsc.Security\Remove-DscOrchestratorPathSafely -Path $_.FullName
                     Write-Host "  Removed stale staging directory: $($_.Name)" -ForegroundColor Gray
                 }
                 catch {
@@ -312,9 +321,6 @@ try {
 
         # Write before Register-ScheduledTask; -At (Get-Date) fires immediately.
         $initialRunMarker = Join-Path $logsRoot '.initial-run'
-        if (-not (Test-Path -LiteralPath $logsRoot)) {
-            New-Item -ItemType Directory -Path $logsRoot -Force -ErrorAction Stop | Out-Null
-        }
         New-Item -ItemType File -Path $initialRunMarker -Force -ErrorAction Stop | Out-Null
 
         Register-ScheduledTask `

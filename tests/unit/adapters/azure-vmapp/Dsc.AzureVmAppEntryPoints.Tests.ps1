@@ -233,7 +233,7 @@ Describe 'Deploy-DSCv3VMApp' {
         Should -Invoke Update-AzVM -Times 1 -Exactly -ParameterFilter { $AsJob }
     }
 
-    It 'uses the scoped VM update helper for both initial and retry updates' {
+    It 'captures the scoped VM update helper for initial and retry updates' {
         $tokens = $null
         $parseErrors = $null
         $deployAst = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -254,7 +254,9 @@ Describe 'Deploy-DSCv3VMApp' {
                 $node.GetCommandName() -eq 'Update-AzVM'
         }, $true))
 
-        $helperCalls | Should -HaveCount 2
+        $helperCalls | Should -HaveCount 1
+        $deployAst.Extent.Text | Should -Match '\$startVMUpdateJob\s*=\s*\$\{function:Start-VMUpdateJob\}'
+        $deployAst.Extent.Text | Should -Match '&\s*\$startVMUpdateJob\s+-ResourceGroupName'
         $updateCalls | Should -HaveCount 1
     }
 }

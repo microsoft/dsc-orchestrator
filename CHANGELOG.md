@@ -4,6 +4,14 @@ All notable changes to this project are documented here. This changelog follows 
 
 ## [Unreleased]
 
+### Fixed
+
+- Deploy retries no longer fail with 'Start-VMUpdateJob is not recognized'.
+
+### Security
+
+- The agent now secures its install folder before use: only SYSTEM and Administrators can access it, links are refused, and an untrusted pre-existing folder is reset.
+
 ### Added
 
 - Package builder: compose DSCv3 configuration fragments into a versioned ZIP with pinned `dsc` and PowerShell runtimes and resource modules.

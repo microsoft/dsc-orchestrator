@@ -31,6 +31,16 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $DscRoot = [System.IO.Path]::GetFullPath($DscRoot)
+$securityModulePath = @(
+    (Join-Path $PSScriptRoot 'AppModules\Dsc.Security.psm1')
+    (Join-Path $PSScriptRoot 'Modules\Dsc.Security.psm1')
+) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    Select-Object -First 1
+if (-not $securityModulePath) {
+    throw "Dsc.Security.psm1 was not found beside remove.ps1."
+}
+Import-Module -Name $securityModulePath -DisableNameChecking -ErrorAction Stop
+Dsc.Security\Initialize-DscOrchestratorRoot -Path $DscRoot
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "DSCv3 Remove"                             -ForegroundColor Cyan
@@ -57,40 +67,19 @@ else {
 Write-Host ""
 Write-Host "Step 2: Removing Orchestrator runtime directory..." -ForegroundColor Cyan
 
-if (Test-Path $dscRoot) {
-    try {
-        foreach ($runtimeChild in @('current', 'staging')) {
-            $runtimePath = Join-Path $dscRoot $runtimeChild
-            if (-not (Test-Path -LiteralPath $runtimePath)) { continue }
+foreach ($runtimeChild in @('current', 'staging')) {
+    $runtimePath = Join-Path $DscRoot $runtimeChild
+    Dsc.Security\Remove-DscOrchestratorPathSafely -Path $runtimePath
+    Write-Host "  Removed: $runtimePath" -ForegroundColor Green
+}
 
-            $item = Get-Item -LiteralPath $runtimePath -Force
-            if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-                [System.IO.Directory]::Delete($runtimePath)
-                Write-Host "  Removed reparse point: $runtimePath" -ForegroundColor Green
-            }
-            else {
-                Remove-Item -LiteralPath $runtimePath -Recurse -Force -ErrorAction Stop
-                Write-Host "  Removed: $runtimePath" -ForegroundColor Green
-            }
-        }
-
-        if ($Purge.IsPresent) {
-            $logsRoot = Join-Path $dscRoot 'logs'
-            if (Test-Path -LiteralPath $logsRoot) {
-                Remove-Item -LiteralPath $logsRoot -Recurse -Force -ErrorAction Stop
-                Write-Host "  Purged logs/state: $logsRoot" -ForegroundColor Green
-            }
-        }
-        else {
-            Write-Host "  Preserved logs/state under: $(Join-Path $dscRoot 'logs')" -ForegroundColor Gray
-        }
-    }
-    catch {
-        Write-Host "  WARNING: Could not fully remove $dscRoot`: $_" -ForegroundColor Yellow
-    }
+if ($Purge.IsPresent) {
+    $logsRoot = Join-Path $DscRoot 'logs'
+    Dsc.Security\Remove-DscOrchestratorPathSafely -Path $logsRoot
+    Write-Host "  Purged logs/state: $logsRoot" -ForegroundColor Green
 }
 else {
-    Write-Host "  Directory not found - skipping." -ForegroundColor Gray
+    Write-Host "  Preserved logs/state under: $(Join-Path $DscRoot 'logs')" -ForegroundColor Gray
 }
 
 Write-Host ""

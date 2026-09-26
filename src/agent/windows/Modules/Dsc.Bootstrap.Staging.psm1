@@ -1,6 +1,7 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'Dsc.Security.psm1') -DisableNameChecking -ErrorAction Stop
 
 function Install-ScopedModule {
     [CmdletBinding(SupportsShouldProcess = $true)]
@@ -106,16 +107,8 @@ function Remove-CurrentPath {
         [string]$Path
     )
 
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-
-    $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
     if ($PSCmdlet.ShouldProcess($Path, 'Remove current runtime content')) {
-        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-            [System.IO.Directory]::Delete($Path)
-        }
-        else {
-            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
-        }
+        Dsc.Security\Remove-DscOrchestratorPathSafely -Path $Path
     }
 }
 

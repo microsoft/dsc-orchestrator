@@ -280,6 +280,75 @@ function Complete-VMUpdateRound {
     return @($failures)
 }
 
+function New-VMAppDeployRecoveryCallback {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSReviewUnusedParameter', '',
+        Justification = 'Parameters are captured by the recovery scriptblocks returned from this factory.'
+    )]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This factory only creates callbacks; deployment updates run under the entry point approval.'
+    )]
+    [CmdletBinding()]
+    param(
+        [string]$ResourceGroupName,
+        [string]$VMAppVersionResourceId,
+        [string]$ApplicationBaseId,
+        [string]$GalleryApplicationName,
+        [string]$GalleryVersionName,
+        [scriptblock]$TestVMAppApplied,
+        [scriptblock]$UpdateApplicationProfile,
+        [scriptblock]$CompleteVMUpdateRound,
+        [scriptblock]$StartVMUpdateJob
+    )
+
+    $verifyApplied = {
+        param($VmName)
+        & $TestVMAppApplied `
+            -ResourceGroupName $ResourceGroupName `
+            -VmName $VmName `
+            -TargetApplicationName $GalleryApplicationName `
+            -TargetVersion $GalleryVersionName
+    }.GetNewClosure()
+
+    $updateVMs = {
+        param([string[]]$VmNames, [int]$Retry)
+
+        $retryJobs = [System.Collections.Generic.List[object]]::new()
+        $roundResults = [System.Collections.Generic.List[object]]::new()
+        foreach ($vmName in $VmNames) {
+            try {
+                $retryVm = Get-AzVM -ResourceGroupName $ResourceGroupName -Name $vmName -ErrorAction Stop
+                $retryVm.ApplicationProfile = & $UpdateApplicationProfile `
+                    -ExistingProfile       $retryVm.ApplicationProfile `
+                    -NewPackageReferenceId $VMAppVersionResourceId `
+                    -ApplicationBaseId     $ApplicationBaseId
+
+                $retryJob = & $StartVMUpdateJob -ResourceGroupName $ResourceGroupName -VM $retryVm |
+                    Add-Member -PassThru -NotePropertyName VmName -NotePropertyValue $vmName
+                $retryJobs.Add($retryJob)
+            }
+            catch {
+                $errorText = $_.Exception.Message
+                Write-Warning "  Retry round $Retry could not start Update-AzVM for VM '$vmName': $errorText"
+                $roundResults.Add([pscustomobject]@{ VmName = $vmName; Error = $errorText })
+            }
+        }
+
+        foreach ($result in @(& $CompleteVMUpdateRound -Jobs @($retryJobs) -Activity "retry round $Retry VM update")) {
+            Write-Warning "  Retry round $Retry Update-AzVM for VM '$($result.VmName)' did not complete: $($result.Error)"
+            $roundResults.Add($result)
+        }
+
+        return @($roundResults)
+    }.GetNewClosure()
+
+    return [pscustomobject]@{
+        VerifyApplied = $verifyApplied
+        UpdateVMs     = $updateVMs
+    }
+}
+
 Write-Information "=== Deploy-DSCv3VMApp ==="
 Write-Information ("ResourceGroupName      : {0}" -f $ResourceGroupName)
 if ($PSBoundParameters.ContainsKey('VMNames')) {
@@ -379,53 +448,25 @@ $failures = @()
 if ($unresolvedDeployments.Count -gt 0) {
     Write-Warning "$($unresolvedDeployments.Count) initial VM update job(s) did not complete; starting recovery."
 
-    $verifyApplied = {
-        param($VmName)
-        Test-DscV3VMAppApplied `
-            -ResourceGroupName $ResourceGroupName `
-            -VmName $VmName `
-            -TargetApplicationName $galAppName `
-            -TargetVersion $galVerName
-    }.GetNewClosure()
-
+    $testVMAppApplied = ${function:Test-DscV3VMAppApplied}
     $updateApplicationProfile = ${function:ConvertTo-VMGalleryApplicationProfile}
     $completeVMUpdateRound = ${function:Complete-VMUpdateRound}
-    $updateVMs = {
-        param([string[]]$VmNames, [int]$Retry)
-
-        $retryJobs = [System.Collections.Generic.List[object]]::new()
-        $roundResults = [System.Collections.Generic.List[object]]::new()
-        foreach ($vmName in $VmNames) {
-            try {
-                $retryVm = Get-AzVM -ResourceGroupName $ResourceGroupName -Name $vmName -ErrorAction Stop
-                $retryVm.ApplicationProfile = & $updateApplicationProfile `
-                    -ExistingProfile       $retryVm.ApplicationProfile `
-                    -NewPackageReferenceId $VMAppVersionResourceId `
-                    -ApplicationBaseId     $ApplicationBaseId
-
-                $retryJob = Start-VMUpdateJob -ResourceGroupName $ResourceGroupName -VM $retryVm |
-                    Add-Member -PassThru -NotePropertyName VmName -NotePropertyValue $vmName
-                $retryJobs.Add($retryJob)
-            }
-            catch {
-                $errorText = $_.Exception.Message
-                Write-Warning "  Retry round $Retry could not start Update-AzVM for VM '$vmName': $errorText"
-                $roundResults.Add([pscustomobject]@{ VmName = $vmName; Error = $errorText })
-            }
-        }
-
-        foreach ($result in @(& $completeVMUpdateRound -Jobs @($retryJobs) -Activity "retry round $Retry VM update")) {
-            Write-Warning "  Retry round $Retry Update-AzVM for VM '$($result.VmName)' did not complete: $($result.Error)"
-            $roundResults.Add($result)
-        }
-
-        return @($roundResults)
-    }.GetNewClosure()
+    $startVMUpdateJob = ${function:Start-VMUpdateJob}
+    $recoveryCallbacks = New-VMAppDeployRecoveryCallback `
+        -ResourceGroupName        $ResourceGroupName `
+        -VMAppVersionResourceId   $VMAppVersionResourceId `
+        -ApplicationBaseId        $ApplicationBaseId `
+        -GalleryApplicationName   $galAppName `
+        -GalleryVersionName       $galVerName `
+        -TestVMAppApplied         $testVMAppApplied `
+        -UpdateApplicationProfile $updateApplicationProfile `
+        -CompleteVMUpdateRound    $completeVMUpdateRound `
+        -StartVMUpdateJob         $startVMUpdateJob
 
     $failures = @(Resolve-FailedVMDeployment `
         -Failures $unresolvedDeployments `
-        -VerifyApplied $verifyApplied `
-        -UpdateVMs $updateVMs)
+        -VerifyApplied $recoveryCallbacks.VerifyApplied `
+        -UpdateVMs $recoveryCallbacks.UpdateVMs)
 }
 
 if ($failures.Count -gt 0) {

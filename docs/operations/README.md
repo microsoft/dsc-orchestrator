@@ -12,6 +12,8 @@ Start-ScheduledTask -TaskName 'DscOrchestrator-Enforcement'
 
 ## Local logs
 
+Only SYSTEM and Administrators can read the install folder, so read logs from an elevated session. See [Install-folder security](security.md).
+
 The agent writes one JSON record per line to:
 
 - `C:\ProgramData\DscOrchestrator\logs\runs.jsonl` — run summaries.

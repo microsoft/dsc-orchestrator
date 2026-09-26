@@ -47,12 +47,62 @@ $env:HARNESS_STATE         = $StateFile
 $env:HARNESS_FAIL_AT       = $FailAt
 $env:HARNESS_ENABLE_FAILS  = if ($EnableFails) { '1' } else { '0' }
 $env:HARNESS_ALLUSERS_ROOT = 'C:\Program Files\WindowsPowerShell\Modules'
+$env:HARNESS_DSC_ROOT      = [System.IO.Path]::GetFullPath($DscRoot)
 
 ([ordered]@{
     exists  = [bool]$TaskExists
     enabled = -not [bool]$TaskInitiallyDisabled
     state   = if ($TaskInitiallyDisabled) { 'Disabled' } else { 'Ready' }
 } | ConvertTo-Json -Compress) | Set-Content -LiteralPath $StateFile -Encoding UTF8
+
+function global:New-HarnessDirectoryAcl {
+    param([string[]]$Sids)
+
+    $acl = [System.Security.AccessControl.DirectorySecurity]::new()
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner([System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
+    foreach ($sidValue in $Sids) {
+        $sid = [System.Security.Principal.SecurityIdentifier]::new($sidValue)
+        $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+            $sid,
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
+            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+                [System.Security.AccessControl.InheritanceFlags]::ObjectInherit,
+            [System.Security.AccessControl.PropagationFlags]::None,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+        $acl.AddAccessRule($rule)
+    }
+    return $acl
+}
+
+function global:Get-Acl {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $fullPath = [System.IO.Path]::GetFullPath($LiteralPath)
+    $parentPath = [System.IO.Directory]::GetParent($env:HARNESS_DSC_ROOT).FullName
+    if ([string]::Equals($fullPath, $env:HARNESS_DSC_ROOT, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return New-HarnessDirectoryAcl -Sids @('S-1-5-18', 'S-1-5-32-544')
+    }
+    if ([string]::Equals($fullPath, $parentPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return New-HarnessDirectoryAcl -Sids @(
+            'S-1-5-18',
+            'S-1-5-32-544',
+            'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
+        )
+    }
+
+    Microsoft.PowerShell.Security\Get-Acl -LiteralPath $LiteralPath -ErrorAction Stop
+}
+
+function global:Set-Acl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$LiteralPath,
+        [Parameter(Mandatory = $true)][System.Security.AccessControl.ObjectSecurity]$AclObject
+    )
+}
 
 function global:Get-HarnessTaskState {
     Get-Content -LiteralPath $env:HARNESS_STATE -Raw | ConvertFrom-Json
