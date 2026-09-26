@@ -36,6 +36,8 @@ Place a `dsc-orchestrator.config.json` beside the fragment tree. It selects frag
 
 `schemaVersion` must be `1.0`; `name` uses letters, digits, dots, underscores, or hyphens; and the package `version` uses `major.minor.patch`. Resource-module versions accept `major.minor.patch` or `major.minor.patch.revision`; missing version components compare as zero. Optional `group` and `role` are nonempty caller metadata (up to 128 characters). `parameters` is optional and supports scalar values only. `ConfigurationName` and `ConfigurationVersion` are reserved render tokens populated from the top-level fields. Use whole-scalar tokens such as `{{ RegistryPath }}` in fragment YAML.
 
+JSON string parameters are always rendered as quoted YAML strings, even when their contents look like a number or boolean. JSON numbers and booleans remain typed YAML scalars. A token may be written bare or surrounded by YAML quotes; the renderer replaces the whole scalar in either form.
+
 Each fragment must declare DSC's bundled configuration schema with `$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json`; the builder validates rendered fragments against the schema from the pinned DSC CLI.
 
 Each fragment entry requires a unique `name` and a relative `.dsc.yaml` `path`. Paths resolve from the directory containing the config file and cannot escape that directory. The optional `modules` array requires a unique module name and exact version for each PowerShell resource module.

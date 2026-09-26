@@ -130,6 +130,7 @@ function Replace-CurrentContent {
     }
 
     $tempDestination = "$Destination.new"
+    $previousDestination = "$Destination.previous"
     if (Test-Path -LiteralPath $tempDestination) {
         Remove-CurrentPath -Path $tempDestination
     }
@@ -137,8 +138,38 @@ function Replace-CurrentContent {
     if ($PSCmdlet.ShouldProcess($Destination, "Replace runtime content from $Source")) {
         Copy-Item -LiteralPath $Source -Destination $tempDestination -Recurse -Force -ErrorAction Stop
         Wait-ForRuntimeFilesUnlocked -Path $Destination -TimeoutSeconds 60 | Out-Null
-        Remove-CurrentPath -Path $Destination
-        Move-Item -LiteralPath $tempDestination -Destination $Destination -Force -ErrorAction Stop
+
+        if (Test-Path -LiteralPath $previousDestination) {
+            Dsc.Security\Remove-DscOrchestratorPathSafely -Path $previousDestination
+        }
+
+        $previousContentMoved = $false
+        try {
+            if (Test-Path -LiteralPath $Destination) {
+                Move-Item -LiteralPath $Destination -Destination $previousDestination -Force -ErrorAction Stop
+                $previousContentMoved = $true
+            }
+            Move-Item -LiteralPath $tempDestination -Destination $Destination -Force -ErrorAction Stop
+        }
+        catch {
+            $replacementError = $_
+            if ($previousContentMoved -or (Test-Path -LiteralPath $previousDestination)) {
+                try {
+                    if (Test-Path -LiteralPath $Destination) {
+                        Remove-CurrentPath -Path $Destination
+                    }
+                    Move-Item -LiteralPath $previousDestination -Destination $Destination -Force -ErrorAction Stop
+                }
+                catch {
+                    throw "Replace-CurrentContent failed: $($replacementError.Exception.Message) The previous runtime could not be restored: $($_.Exception.Message)"
+                }
+            }
+            throw $replacementError
+        }
+
+        if (Test-Path -LiteralPath $previousDestination) {
+            Dsc.Security\Remove-DscOrchestratorPathSafely -Path $previousDestination
+        }
     }
 }
 

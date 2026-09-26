@@ -52,6 +52,51 @@ function Get-DriftedTopLevelResourceNames {
     return ,$names.ToArray()
 }
 
+function Split-YamlFlowListItem {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+
+    $items = New-Object System.Collections.Generic.List[string]
+    $itemStart = 0
+    $parenthesisDepth = 0
+    $quote = [char]0
+
+    for ($i = 0; $i -lt $Text.Length; $i++) {
+        $character = $Text[$i]
+        if ($quote -ne [char]0) {
+            if ($quote -eq [char]34 -and $character -eq [char]92) {
+                $i++
+                continue
+            }
+            if ($character -eq $quote) {
+                if ($quote -eq [char]39 -and $i + 1 -lt $Text.Length -and $Text[$i + 1] -eq [char]39) {
+                    $i++
+                    continue
+                }
+                $quote = [char]0
+            }
+            continue
+        }
+
+        if ($character -eq [char]34 -or $character -eq [char]39) {
+            $quote = $character
+        }
+        elseif ($character -eq [char]40) {
+            $parenthesisDepth++
+        }
+        elseif ($character -eq [char]41 -and $parenthesisDepth -gt 0) {
+            $parenthesisDepth--
+        }
+        elseif ($character -eq [char]44 -and $parenthesisDepth -eq 0) {
+            $items.Add($Text.Substring($itemStart, $i - $itemStart))
+            $itemStart = $i + 1
+        }
+    }
+
+    $items.Add($Text.Substring($itemStart))
+    return ,$items.ToArray()
+}
+
 function Get-WrapperDependsOnNames {
     <#
     .SYNOPSIS
@@ -93,7 +138,7 @@ function Get-WrapperDependsOnNames {
             if ($value -match '^\[\s*(?<inner>.*?)\s*\]\s*$') {
                 $inner = [string]$Matches['inner']
                 if ($inner) {
-                    foreach ($item in $inner -split ',') {
+                    foreach ($item in (Split-YamlFlowListItem -Text $inner)) {
                         $clean = & $resolveItem $item
                         if ($clean) { $names.Add($clean) }
                     }

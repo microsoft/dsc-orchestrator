@@ -46,6 +46,7 @@ BeforeAll {
             [switch]$TaskInitiallyDisabled,
             [switch]$EnableFails,
             [switch]$WithExistingRuntime,
+            [switch]$WithStalePreviousRuntime,
             [switch]$DscRootTrailingSeparator,
             [string]$ManifestVersion = '1.0.0'
         )
@@ -69,6 +70,11 @@ BeforeAll {
             Set-Content -LiteralPath (Join-Path $existingCurrent 'Run-Enforcement.ps1') -Value 'OLD-RUNTIME-MARKER' -Force
             Set-Content -LiteralPath (Join-Path $existingCurrent 'version.txt') -Value '0.0.1-old' -Force
             Set-Content -LiteralPath (Join-Path $existingCurrent 'modules\StaleModule\StaleModule.psm1') -Value '# stale' -Force
+        }
+        if ($WithStalePreviousRuntime) {
+            $stalePrevious = Join-Path $dscRoot 'current.previous'
+            New-Item -ItemType Directory -Path $stalePrevious -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $stalePrevious 'stale-crash-marker.txt') -Value 'stale' -Force
         }
 
         $runnerArgs = @(
@@ -179,9 +185,11 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             $result.CallNames | Should -Not -Contain 'register'
             $result.TaskState.enabled | Should -BeTrue
 
-            # Fail toward enabled: the swap died between the removal of 'current' and the rename, so
-            # 'current' is wholly absent and the restored task fails loudly instead of showing stale green.
-            Test-Path -LiteralPath (Join-Path $result.DscRoot 'current') | Should -BeFalse
+            # The swap failure must preserve the old runtime so the re-enabled task remains runnable.
+            Test-Path -LiteralPath (Join-Path $result.DscRoot 'current\version.txt') | Should -BeTrue
+            (Get-Content -LiteralPath (Join-Path $result.DscRoot 'current\version.txt') -ErrorAction Stop) -join '' |
+                Should -BeExactly '0.0.1-old'
+            Test-Path -LiteralPath (Join-Path $result.DscRoot 'current.previous') | Should -BeFalse
         }
     }
 
@@ -205,6 +213,17 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
 
             # Replace-CurrentContent stages at the sibling "$Destination.new" and must land it, not leave it.
             Test-Path -LiteralPath (Join-Path $script:success.DscRoot 'current.new') | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $script:success.DscRoot 'current.previous') | Should -BeFalse
+        }
+
+        It 'removes a stale current.previous directory left by a prior interrupted upgrade' {
+            $result = Invoke-BootstrapHarness -WithExistingRuntime -WithStalePreviousRuntime
+
+            $result.ExitCode | Should -Be 0
+            Test-Path -LiteralPath (Join-Path $result.DscRoot 'current\version.txt') | Should -BeTrue
+            (Get-Content -LiteralPath (Join-Path $result.DscRoot 'current\version.txt') -ErrorAction Stop) -join '' |
+                Should -BeExactly '1.0.0'
+            Test-Path -LiteralPath (Join-Path $result.DscRoot 'current.previous') | Should -BeFalse
         }
 
         It 'preserves the registration arguments and settings' {
@@ -266,6 +285,9 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             $fatal[0].error_message | Should -BeLike '*is denied (injected)*'
             $fatal[0].message       | Should -BeLike '*task_restore=failed: *enabling the scheduled task (injected)*'
             $result.TaskState.enabled | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $result.DscRoot 'current\version.txt') | Should -BeTrue
+            (Get-Content -LiteralPath (Join-Path $result.DscRoot 'current\version.txt') -ErrorAction Stop) -join '' |
+                Should -BeExactly '0.0.1-old'
         }
     }
 }

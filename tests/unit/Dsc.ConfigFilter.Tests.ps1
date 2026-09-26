@@ -27,6 +27,22 @@ BeforeAll {
     # Splits a here-string YAML wrapper into a string[] for Get-WrapperDependsOnNames.
     function script:ToLines { param([string]$Text) return @($Text -split "`r?`n") }
 
+    function script:New-FlowDependsOnConfig {
+        param([Parameter(Mandatory)][string]$Path)
+
+        $newline = [System.Environment]::NewLine
+        $text = New-DscConfigText -Wrappers @(
+            @{ Name = 'WrapperA' }
+            @{ Name = 'WrapperB' }
+            @{ Name = 'WrapperConsumer' }
+        )
+        $marker = '  - name: WrapperConsumer' + $newline + '    type: Microsoft.DSC/PowerShell' + $newline
+        $dependencies = '    dependsOn: ["[resourceId(''Microsoft.DSC/PowerShell'', ''WrapperA'')]", "[resourceId(''Microsoft.DSC/PowerShell'', ''WrapperB'')]"]'
+        $text = $text.Replace($marker, $marker + $dependencies + $newline)
+        [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
+        return $Path
+    }
+
     # Tracks temp configs the New-* functions return so AfterEach can clean them
     # (the documented contract is: function returns the path, caller cleans).
     $script:TempArtifacts = New-Object System.Collections.Generic.List[string]
@@ -55,6 +71,32 @@ Describe 'Get-WrapperDependsOnNames' {
         $names | Should -Be @('WrapperA', 'WrapperC')
     }
 
+    It 'parses a single inline resourceId item without splitting its arguments' {
+        $wrapper = @'
+  - name: WrapperB
+    type: Microsoft.DSC/PowerShell
+    dependsOn: ["[resourceId('Microsoft.DSC/PowerShell', 'WrapperA')]"]
+    properties:
+      resources:
+        - name: WrapperB-inner
+'@
+        $names = Get-WrapperDependsOnNames -WrapperLines (ToLines $wrapper) -WrapperRootIndent 2
+        $names | Should -Be @('WrapperA')
+    }
+
+    It 'parses every inline resourceId item in a flow list' {
+        $wrapper = @'
+  - name: WrapperC
+    type: Microsoft.DSC/PowerShell
+    dependsOn: ["[resourceId('Microsoft.DSC/PowerShell', 'WrapperA')]", "[resourceId('Microsoft.DSC/PowerShell', 'WrapperB')]"]
+    properties:
+      resources:
+        - name: WrapperC-inner
+'@
+        $names = Get-WrapperDependsOnNames -WrapperLines (ToLines $wrapper) -WrapperRootIndent 2
+        $names | Should -Be @('WrapperA', 'WrapperB')
+    }
+
     It 'parses a block list' {
         $wrapper = @'
   - name: WrapperB
@@ -68,6 +110,21 @@ Describe 'Get-WrapperDependsOnNames' {
 '@
         $names = Get-WrapperDependsOnNames -WrapperLines (ToLines $wrapper) -WrapperRootIndent 2
         $names | Should -Be @('WrapperA', 'WrapperC')
+    }
+
+    It 'parses all resourceId items in a block list' {
+        $wrapper = @'
+  - name: WrapperC
+    type: Microsoft.DSC/PowerShell
+    dependsOn:
+      - "[resourceId('Microsoft.DSC/PowerShell', 'WrapperA')]"
+      - "[resourceId('Microsoft.DSC/PowerShell', 'WrapperB')]"
+    properties:
+      resources:
+        - name: WrapperC-inner
+'@
+        $names = Get-WrapperDependsOnNames -WrapperLines (ToLines $wrapper) -WrapperRootIndent 2
+        $names | Should -Be @('WrapperA', 'WrapperB')
     }
 
     It 'parses a single scalar' {
@@ -338,6 +395,24 @@ Describe 'New-FilteredConfigForResources' {
 
         Test-Path -LiteralPath $path | Should -BeTrue
         $path | Should -BeLike (Join-Path ([System.IO.Path]::GetTempPath()) 'dsc-set-subset-*.yaml')
+    }
+
+    It 'forward-expands every dependency in an inline resourceId flow list' {
+        $cfg = Track (New-FlowDependsOnConfig -Path (Join-Path $TestDrive 'flow-filter.yaml'))
+        $path = Track (New-FilteredConfigForResources -SourcePath $cfg -ResourceNames @('WrapperConsumer'))
+        $graph = Get-EmittedWrapperGraph -Path $path
+
+        @($graph.Keys | Sort-Object) | Should -Be @('WrapperA', 'WrapperB', 'WrapperConsumer')
+        @($graph['WrapperConsumer'] | Sort-Object) | Should -Be @('WrapperA', 'WrapperB')
+    }
+
+    It 'reverse-strips wrappers depending on any inline resourceId flow-list entry' {
+        $cfg = Track (New-FlowDependsOnConfig -Path (Join-Path $TestDrive 'flow-reverse.yaml'))
+        $result = New-StrippedConfigExcludingResources -SourcePath $cfg -ExcludeResourceNames @('WrapperA')
+        $null = Track $result.Path
+
+        @($result.ExcludedNames | Sort-Object) | Should -Be @('WrapperA', 'WrapperConsumer')
+        @($result.KeptNames) | Should -Be @('WrapperB')
     }
 }
 

@@ -10,7 +10,7 @@
     file rather than global variables (PSAvoidGlobalVars).
 
     Failure-injection seams, each a production failure observed in the field:
-      swap     - Move-Item 'current.new' -> 'current' throws (Step 6, after 'current' was removed).
+      swap     - Move-Item 'current.new' -> 'current' throws (Step 6); Replace-CurrentContent must restore the previous runtime.
       register - Register-ScheduledTask throws (Step 9, last statement inside the disable window).
       start    - Start-ScheduledTask throws (Step 9, after registration closed the window).
       -EnableFails - the restore's Enable-ScheduledTask throws.
@@ -237,7 +237,7 @@ function global:Get-CimInstance {
     @()
 }
 
-# Only Replace-CurrentContent moves anything, and only after 'current' has been removed.
+# Only Replace-CurrentContent moves runtime content.
 function global:Move-Item {
     [CmdletBinding()]
     param(
@@ -246,8 +246,10 @@ function global:Move-Item {
         [Parameter(Position = 1)][string]$Destination,
         [switch]$Force
     )
-    Write-HarnessCall -Name 'moveitem' -Data @{ destination = $Destination }
-    if ($env:HARNESS_FAIL_AT -eq 'swap') {
+    $source = if ($LiteralPath) { [string]$LiteralPath[0] } elseif ($Path) { [string]$Path[0] } else { '' }
+    Write-HarnessCall -Name 'moveitem' -Data @{ source = $source; destination = $Destination }
+    if ($env:HARNESS_FAIL_AT -eq 'swap' -and
+        [string]::Equals((Split-Path -Path $source -Leaf), 'current.new', [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Access to the path '$Destination' is denied (injected)."
     }
     $forward = @{ Destination = $Destination }

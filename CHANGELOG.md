@@ -4,6 +4,15 @@ All notable changes to this project are documented here. This changelog follows 
 
 ## [Unreleased]
 
+## [1.0.1] - UNRELEASED
+
+### Fixed
+
+- Configuration values keep their original string, number, or true/false type when written to YAML.
+- Inline dependency lists preserve commas inside resource references.
+- Failed upgrades restore the previous runtime so enforcement remains runnable.
+- Removal reports failure when a scheduled task or runtime files cannot be removed.
+
 ## [1.0.0] - 2026-09-26
 
 First release.
@@ -19,5 +28,6 @@ First release.
 - Basic and advanced examples, a quickstart, and an Azure Pipelines release example.
 - CI for Windows PowerShell 5.1 and PowerShell 7.
 
-[Unreleased]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/microsoft/dsc-orchestrator/releases/tag/v1.0.0

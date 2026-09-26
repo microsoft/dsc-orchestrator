@@ -340,7 +340,7 @@ function Initialize-DscOrchestratorSubdirectory {
         [string]$RootPath,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('logs', 'install', 'staging', 'current')]
+        [ValidateSet('logs', 'install', 'staging', 'current', 'current.previous')]
         [string]$Name
     )
 

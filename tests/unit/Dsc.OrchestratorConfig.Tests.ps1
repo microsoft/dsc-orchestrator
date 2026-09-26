@@ -11,6 +11,21 @@ BeforeAll {
     Import-Module $script:ConfigModule -Force
     Import-Module (Join-Path $script:ComposeRoot 'Modules\Dsc.Prepare.Parse.psm1') -Force
     Import-Module (Join-Path $script:ComposeRoot 'Modules\Dsc.Prepare.Emit.psm1') -Force
+    $yamlModule = Get-Module -ListAvailable -Name powershell-yaml |
+        Where-Object { $_.Version -eq [version]'0.4.12' } |
+        Select-Object -First 1
+    if ($yamlModule) {
+        $yamlModulePath = $yamlModule.Path
+    }
+    elseif (Get-Command -Name Get-InstalledModule -ErrorAction SilentlyContinue) {
+        $installedYamlModule = Get-InstalledModule -Name powershell-yaml `
+            -RequiredVersion 0.4.12 -ErrorAction Stop
+        $yamlModulePath = Join-Path $installedYamlModule.InstalledLocation 'powershell-yaml.psd1'
+    }
+    else {
+        throw 'powershell-yaml 0.4.12 is required to validate rendered parameter YAML.'
+    }
+    Import-Module -Name $yamlModulePath -Force -ErrorAction Stop
 }
 
 Describe 'Orchestrator configuration input' {
@@ -61,6 +76,63 @@ Describe 'Orchestrator configuration input' {
         $rendered | Should -Match "name: 'sample-configuration'"
         $rendered | Should -Match 'enabled: true'
         $rendered | Should -Match "path: 'HKLM:\\SOFTWARE\\Example\\Application'"
+    }
+
+    It 'round-trips rendered scalar values using their JSON types' {
+        $jsonParameters = @'
+{
+  "LeadingZero": "00123",
+  "BooleanText": "true",
+  "DecimalText": "1.0",
+  "SpecialText": "value: # keep 'quote'",
+  "Integer": 42,
+  "Decimal": 1.5,
+  "Enabled": true
+}
+'@ | ConvertFrom-Json
+        $parameters = Get-RenderParameterMap `
+            -Parameters $jsonParameters `
+            -ConfigurationName 'typed-values' `
+            -ConfigurationVersion '1.0.0'
+        $fragment = @'
+values:
+  leadingZeroQuoted: '{{ LeadingZero }}'
+  leadingZeroUnquoted: {{ LeadingZero }}
+  booleanText: {{ BooleanText }}
+  decimalText: '{{ DecimalText }}'
+  specialText: '{{ SpecialText }}'
+  integerQuoted: '{{ Integer }}'
+  integerUnquoted: {{ Integer }}
+  decimal: {{ Decimal }}
+  enabledQuoted: '{{ Enabled }}'
+  enabledUnquoted: {{ Enabled }}
+'@
+
+        $rendered = Invoke-DSCv3ParameterRendering `
+            -Content $fragment `
+            -Path 'typed-values.dsc.yaml' `
+            -ParameterMap $parameters
+        $parsed = powershell-yaml\ConvertFrom-Yaml -Yaml $rendered -ErrorAction Stop
+        $values = $parsed['values']
+
+        $values['leadingZeroQuoted'] | Should -BeOfType ([string])
+        $values['leadingZeroQuoted'] | Should -BeExactly '00123'
+        $values['leadingZeroUnquoted'] | Should -BeOfType ([string])
+        $values['leadingZeroUnquoted'] | Should -BeExactly '00123'
+        $values['booleanText'] | Should -BeOfType ([string])
+        $values['booleanText'] | Should -BeExactly 'true'
+        $values['decimalText'] | Should -BeOfType ([string])
+        $values['decimalText'] | Should -BeExactly '1.0'
+        $values['specialText'] | Should -BeExactly "value: # keep 'quote'"
+        $values['integerQuoted'] | Should -Be 42
+        $values['integerQuoted'] -is [System.ValueType] | Should -BeTrue
+        $values['integerQuoted'] -is [bool] | Should -BeFalse
+        $values['integerUnquoted'] | Should -Be 42
+        $values['decimal'] | Should -Be 1.5
+        $values['enabledQuoted'] | Should -BeOfType ([bool])
+        $values['enabledQuoted'] | Should -BeTrue
+        $values['enabledUnquoted'] | Should -BeOfType ([bool])
+        $values['enabledUnquoted'] | Should -BeTrue
     }
 
     It 'composes the selected fragment and writes a hashed manifest' {

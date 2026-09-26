@@ -123,6 +123,7 @@ function ConvertTo-WindowsCommandLineArgument {
 $logsRoot = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath $DscRoot -Name 'logs'
 $stagingRoot = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath $DscRoot -Name 'staging'
 $currentLink = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath $DscRoot -Name 'current'
+Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath $DscRoot -Name 'current.previous' | Out-Null
 $versionDir = Join-Path $stagingRoot $Version
 $modulesTarget = Join-Path $versionDir 'modules'
 $waitTimeoutSec = 1800

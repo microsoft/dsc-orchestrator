@@ -310,10 +310,18 @@ Describe 'Dsc.Orchestrator install-root security' {
             "    `$logsRoot = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath `$DscRoot -Name 'logs'"
             "    `$stagingRoot = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath `$DscRoot -Name 'staging'"
             "    `$currentPath = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath `$DscRoot -Name 'current'"
+            "    `$previousPath = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath `$DscRoot -Name 'current.previous'"
             "    `$stalePath = Join-Path `$stagingRoot 'stale.txt'"
             "    Set-Content -LiteralPath `$stalePath -Value 'stale' -ErrorAction Stop"
             '    Dsc.Security\Remove-DscOrchestratorPathSafely -Path $stalePath'
             '    if (Test-Path -LiteralPath $stalePath) { throw "The staging path was not removed: $stalePath" }'
+            "    `$previousTarget = Join-Path (Split-Path -Parent `$DscRoot) 'dsc-security-previous-target'"
+            '    New-Item -ItemType Directory -Path $previousTarget -Force -ErrorAction Stop | Out-Null'
+            "    Set-Content -LiteralPath (Join-Path `$previousTarget 'sentinel.txt') -Value 'keep' -ErrorAction Stop"
+            '    Dsc.Security\Remove-DscOrchestratorPathSafely -Path $previousPath'
+            '    New-Item -ItemType Junction -Path $previousPath -Target $previousTarget -ErrorAction Stop | Out-Null'
+            "    `$previousPath = Dsc.Security\Initialize-DscOrchestratorSubdirectory -RootPath `$DscRoot -Name 'current.previous'"
+            "    if (-not (Test-Path -LiteralPath (Join-Path `$previousTarget 'sentinel.txt'))) { throw 'The current.previous junction target was removed.' }"
             '} $ModulePath $DscRoot'
         )
         $parentScopeScript = [scriptblock]::Create(
@@ -335,6 +343,9 @@ Describe 'Dsc.Orchestrator install-root security' {
         Test-Path -LiteralPath (Join-Path $root 'logs') -PathType Container | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $root 'staging') -PathType Container | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $root 'current') -PathType Container | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $root 'current.previous') -PathType Container | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path (Split-Path -Parent $root) 'dsc-security-previous-target\sentinel.txt') |
+            Should -BeTrue
     }
 
     It 'module-qualifies security helper calls in bootstrap, remove, and staging scripts' {

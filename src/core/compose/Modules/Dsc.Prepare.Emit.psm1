@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 function ConvertTo-YamlScalar {
     <#
     .SYNOPSIS
-        Renders a scalar parameter value as a line-safe YAML scalar (quoted when needed).
+        Renders a scalar parameter value as YAML while preserving its JSON type.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $false)][AllowNull()][object]$Value)
@@ -23,7 +23,10 @@ function ConvertTo-YamlScalar {
         throw "DSCv3 parameter rendering supports scalar values only. Complex values must be expressed as strings or split into scalar parameters."
     }
     if ($Value -is [bool]) { if ($Value) { return 'true' } else { return 'false' } }
-    if ($Value -is [int] -or $Value -is [long] -or $Value -is [byte] -or $Value -is [System.Int16]) {
+    if ($Value -is [sbyte] -or $Value -is [byte] -or
+        $Value -is [int16] -or $Value -is [uint16] -or
+        $Value -is [int32] -or $Value -is [uint32] -or
+        $Value -is [int64] -or $Value -is [uint64]) {
         return $Value.ToString([System.Globalization.CultureInfo]::InvariantCulture)
     }
     if ($Value -is [decimal] -or $Value -is [double] -or $Value -is [float]) {
@@ -34,21 +37,8 @@ function ConvertTo-YamlScalar {
     if ($str -match "(`r|`n)") {
         throw "DSCv3 parameter rendering supports single-line scalar values only."
     }
-    if ($str -eq 'True')  { return 'true' }
-    if ($str -eq 'False') { return 'false' }
-    if ($str -match '^\d+$') { return $str }
-
-    $needsQuoting = $false
-    if ($str -eq '')                                { $needsQuoting = $true }
-    if ($str -match '[:{}\[\],&*?|>!%@`#''"]')      { $needsQuoting = $true }
-    if ($str -match '^\s|\s$')                      { $needsQuoting = $true }
-    if ($str -match '^(true|false|yes|no|null|~)$') { $needsQuoting = $true }
-
-    if ($needsQuoting) {
-        $escaped = $str -replace "'", "''"
-        return "'$escaped'"
-    }
-    return $str
+    $escaped = $str.Replace("'", "''")
+    return "'$escaped'"
 }
 
 function Invoke-DSCv3ParameterRendering {
@@ -67,7 +57,7 @@ function Invoke-DSCv3ParameterRendering {
         [Parameter(Mandatory = $true)][System.Collections.Generic.Dictionary[string, object]]$ParameterMap
     )
 
-    $supportedTokenPattern = [regex]'\{\{\s*(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*\}\}'
+    $supportedTokenPattern = [regex]'(?<quote>[''"])?\{\{\s*(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*\}\}(?(quote)\k<quote>)'
     try {
         return $supportedTokenPattern.Replace($Content, {
             param([System.Text.RegularExpressions.Match]$Match)
@@ -77,7 +67,7 @@ function Invoke-DSCv3ParameterRendering {
                 throw "Missing DSCv3 render parameter '$parameterName'. Add it to dsc-orchestrator.config.json parameters or use ConfigurationName/ConfigurationVersion."
             }
 
-            return ConvertTo-YamlScalar $ParameterMap[$parameterName]
+            return ConvertTo-YamlScalar -Value $ParameterMap[$parameterName]
         })
     } catch {
         throw "Failed to render fragment '$Path': $($_.Exception.Message)"
