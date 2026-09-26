@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "name": "advanced-sample",
+  "version": "1.0.1",
+  "group": "advanced-example",
+  "role": "test-host",
+  "parameters": {
+    "RegistryReleaseLabel": "advanced-v1"
+  },
+  "fragments": [
+    {
+      "name": "registry-base",
+      "path": "fragments/registry-base.dsc.yaml"
+    },
+    {
+      "name": "machine-environment",
+      "path": "fragments/machine-environment.dsc.yaml"
+    },
+    {
+      "name": "registry-verification",
+      "path": "fragments/registry-verification.dsc.yaml"
+    }
+  ],
+  "modules": [
+    {
+      "name": "PSDscResources",
+      "version": "2.12.0"
+    }
+  ]
+}

@@ -1,0 +1,600 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.42.1.51946",
+      "templateHash": "3460873162143353551"
+    }
+  },
+  "parameters": {
+    "workspaceResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Full resource ID of the Log Analytics workspace that receives the JSONL streams."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the Data Collection Rule and Data Collection Endpoint."
+      }
+    },
+    "dcrName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Data Collection Rule."
+      }
+    },
+    "dceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Data Collection Endpoint."
+      }
+    },
+    "publicNetworkAccess": {
+      "type": "string",
+      "defaultValue": "Enabled",
+      "allowedValues": [
+        "Enabled",
+        "Disabled"
+      ],
+      "metadata": {
+        "description": "Public network access for the Data Collection Endpoint."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Additional tags applied to the Data Collection Endpoint and Data Collection Rule."
+      }
+    },
+    "retentionInDays": {
+      "type": "int",
+      "defaultValue": -1,
+      "minValue": -1,
+      "metadata": {
+        "description": "Per-table retention in days. Use -1 to keep the workspace default."
+      }
+    },
+    "dscRoot": {
+      "type": "string",
+      "defaultValue": "C:\\ProgramData\\DscOrchestrator",
+      "minLength": 1,
+      "metadata": {
+        "description": "Root directory used by the agent. The JSONL files are read from its logs subdirectory."
+      }
+    },
+    "enableModuleLogs": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable the optional module log table and file source."
+      }
+    },
+    "moduleLogPath": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Absolute path to the module JSONL file. Required when enableModuleLogs is true."
+      }
+    }
+  },
+  "variables": {
+    "workspaceIdParts": "[split(parameters('workspaceResourceId'), '/')]",
+    "workspaceSubscriptionId": "[variables('workspaceIdParts')[2]]",
+    "workspaceResourceGroupName": "[variables('workspaceIdParts')[4]]",
+    "workspaceName": "[last(variables('workspaceIdParts'))]",
+    "runsColumns": [
+      {
+        "name": "schema_version",
+        "type": "string"
+      },
+      {
+        "name": "run_id",
+        "type": "string"
+      },
+      {
+        "name": "TimeGenerated",
+        "type": "datetime"
+      },
+      {
+        "name": "Computer",
+        "type": "string"
+      },
+      {
+        "name": "group",
+        "type": "string"
+      },
+      {
+        "name": "role",
+        "type": "string"
+      },
+      {
+        "name": "config_version",
+        "type": "string"
+      },
+      {
+        "name": "configuration_hash",
+        "type": "string"
+      },
+      {
+        "name": "dsc_exe_version",
+        "type": "string"
+      },
+      {
+        "name": "mode",
+        "type": "string"
+      },
+      {
+        "name": "trigger",
+        "type": "string"
+      },
+      {
+        "name": "outcome",
+        "type": "string"
+      },
+      {
+        "name": "total_resources",
+        "type": "int"
+      },
+      {
+        "name": "compliant_resources",
+        "type": "int"
+      },
+      {
+        "name": "non_compliant_count",
+        "type": "int"
+      },
+      {
+        "name": "failed_count",
+        "type": "int"
+      },
+      {
+        "name": "skipped_count",
+        "type": "int"
+      },
+      {
+        "name": "unevaluated_count",
+        "type": "int"
+      },
+      {
+        "name": "had_errors",
+        "type": "boolean"
+      },
+      {
+        "name": "test_duration",
+        "type": "string"
+      },
+      {
+        "name": "set_duration",
+        "type": "string"
+      },
+      {
+        "name": "verify_duration",
+        "type": "string"
+      },
+      {
+        "name": "total_duration",
+        "type": "string"
+      },
+      {
+        "name": "exit_code",
+        "type": "int"
+      },
+      {
+        "name": "error",
+        "type": "string"
+      },
+      {
+        "name": "non_compliant_resources",
+        "type": "dynamic"
+      },
+      {
+        "name": "erroring_resources",
+        "type": "dynamic"
+      },
+      {
+        "name": "reboot_count",
+        "type": "int"
+      },
+      {
+        "name": "enforcement_id",
+        "type": "string"
+      }
+    ],
+    "resourcesColumns": [
+      {
+        "name": "schema_version",
+        "type": "string"
+      },
+      {
+        "name": "run_id",
+        "type": "string"
+      },
+      {
+        "name": "TimeGenerated",
+        "type": "datetime"
+      },
+      {
+        "name": "Computer",
+        "type": "string"
+      },
+      {
+        "name": "group",
+        "type": "string"
+      },
+      {
+        "name": "role",
+        "type": "string"
+      },
+      {
+        "name": "config_version",
+        "type": "string"
+      },
+      {
+        "name": "configuration_hash",
+        "type": "string"
+      },
+      {
+        "name": "fragment",
+        "type": "string"
+      },
+      {
+        "name": "trigger",
+        "type": "string"
+      },
+      {
+        "name": "phase",
+        "type": "string"
+      },
+      {
+        "name": "adapter",
+        "type": "string"
+      },
+      {
+        "name": "adapter_instance_name",
+        "type": "string"
+      },
+      {
+        "name": "resource_type",
+        "type": "string"
+      },
+      {
+        "name": "resource_name",
+        "type": "string"
+      },
+      {
+        "name": "in_desired_state",
+        "type": "boolean"
+      },
+      {
+        "name": "reasons",
+        "type": "dynamic"
+      },
+      {
+        "name": "action",
+        "type": "string"
+      },
+      {
+        "name": "event",
+        "type": "string"
+      },
+      {
+        "name": "result",
+        "type": "string"
+      },
+      {
+        "name": "had_errors",
+        "type": "boolean"
+      },
+      {
+        "name": "error_message",
+        "type": "string"
+      },
+      {
+        "name": "duration",
+        "type": "string"
+      },
+      {
+        "name": "duration_source",
+        "type": "string"
+      },
+      {
+        "name": "completion_kind",
+        "type": "string"
+      }
+    ],
+    "bootstrapColumns": [
+      {
+        "name": "TimeGenerated",
+        "type": "datetime"
+      },
+      {
+        "name": "Computer",
+        "type": "string"
+      },
+      {
+        "name": "config_version",
+        "type": "string"
+      },
+      {
+        "name": "stage",
+        "type": "string"
+      },
+      {
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "name": "message",
+        "type": "string"
+      },
+      {
+        "name": "pwsh_source",
+        "type": "string"
+      },
+      {
+        "name": "pwsh_path",
+        "type": "string"
+      },
+      {
+        "name": "pwsh_version",
+        "type": "string"
+      },
+      {
+        "name": "error_type",
+        "type": "string"
+      },
+      {
+        "name": "error_message",
+        "type": "string"
+      }
+    ],
+    "moduleLogsColumns": [
+      {
+        "name": "TimeGenerated",
+        "type": "datetime"
+      },
+      {
+        "name": "Computer",
+        "type": "string"
+      },
+      {
+        "name": "schema_version",
+        "type": "string"
+      },
+      {
+        "name": "run_id",
+        "type": "string"
+      },
+      {
+        "name": "level",
+        "type": "string"
+      },
+      {
+        "name": "app_context",
+        "type": "string"
+      },
+      {
+        "name": "module_name",
+        "type": "string"
+      },
+      {
+        "name": "function_name",
+        "type": "string"
+      },
+      {
+        "name": "message",
+        "type": "string"
+      },
+      {
+        "name": "pid",
+        "type": "int"
+      }
+    ],
+    "logFileSources": "[concat(createArray(createObject('name', 'dsc-orchestrator-runs', 'streams', createArray('Custom-DscOrchestrator_Runs_CL'), 'filePatterns', createArray(format('{0}\\logs\\runs.jsonl', parameters('dscRoot'))), 'format', 'json'), createObject('name', 'dsc-orchestrator-resources', 'streams', createArray('Custom-DscOrchestrator_Resources_CL'), 'filePatterns', createArray(format('{0}\\logs\\resources.jsonl', parameters('dscRoot'))), 'format', 'json'), createObject('name', 'dsc-orchestrator-bootstrap', 'streams', createArray('Custom-DscOrchestrator_Bootstrap_CL'), 'filePatterns', createArray(format('{0}\\logs\\bootstrap.jsonl', parameters('dscRoot'))), 'format', 'json')), if(parameters('enableModuleLogs'), createArray(createObject('name', 'dsc-orchestrator-module-logs', 'streams', createArray('Custom-DscOrchestrator_ModuleLogs_CL'), 'filePatterns', createArray(parameters('moduleLogPath')), 'format', 'json')), createArray()))]",
+    "streamDeclarations": "[union(createObject('Custom-DscOrchestrator_Runs_CL', createObject('columns', variables('runsColumns')), 'Custom-DscOrchestrator_Resources_CL', createObject('columns', variables('resourcesColumns')), 'Custom-DscOrchestrator_Bootstrap_CL', createObject('columns', variables('bootstrapColumns'))), if(parameters('enableModuleLogs'), createObject('Custom-DscOrchestrator_ModuleLogs_CL', createObject('columns', variables('moduleLogsColumns'))), createObject()))]",
+    "dataFlows": "[concat(createArray(createObject('streams', createArray('Custom-DscOrchestrator_Runs_CL'), 'destinations', createArray('dsc-orchestrator-log-analytics'), 'outputStream', 'Custom-DscOrchestrator_Runs_CL'), createObject('streams', createArray('Custom-DscOrchestrator_Resources_CL'), 'destinations', createArray('dsc-orchestrator-log-analytics'), 'outputStream', 'Custom-DscOrchestrator_Resources_CL'), createObject('streams', createArray('Custom-DscOrchestrator_Bootstrap_CL'), 'destinations', createArray('dsc-orchestrator-log-analytics'), 'outputStream', 'Custom-DscOrchestrator_Bootstrap_CL')), if(parameters('enableModuleLogs'), createArray(createObject('streams', createArray('Custom-DscOrchestrator_ModuleLogs_CL'), 'destinations', createArray('dsc-orchestrator-log-analytics'), 'outputStream', 'Custom-DscOrchestrator_ModuleLogs_CL')), createArray()))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Insights/dataCollectionEndpoints",
+      "apiVersion": "2023-03-11",
+      "name": "[parameters('dceName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "networkAcls": {
+          "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/dataCollectionRules",
+      "apiVersion": "2023-03-11",
+      "name": "[parameters('dcrName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "dataCollectionEndpointId": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dceName'))]",
+        "streamDeclarations": "[variables('streamDeclarations')]",
+        "dataSources": {
+          "logFiles": "[variables('logFileSources')]"
+        },
+        "destinations": {
+          "logAnalytics": [
+            {
+              "name": "dsc-orchestrator-log-analytics",
+              "workspaceResourceId": "[parameters('workspaceResourceId')]"
+            }
+          ]
+        },
+        "dataFlows": "[variables('dataFlows')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dceName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('workspaceSubscriptionId'), variables('workspaceResourceGroupName')), 'Microsoft.Resources/deployments', 'dsc-orchestrator-workspace-tables')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "dsc-orchestrator-workspace-tables",
+      "subscriptionId": "[variables('workspaceSubscriptionId')]",
+      "resourceGroup": "[variables('workspaceResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workspaceName": {
+            "value": "[variables('workspaceName')]"
+          },
+          "retentionInDays": {
+            "value": "[parameters('retentionInDays')]"
+          },
+          "enableModuleLogs": {
+            "value": "[parameters('enableModuleLogs')]"
+          },
+          "runsColumns": {
+            "value": "[variables('runsColumns')]"
+          },
+          "resourcesColumns": {
+            "value": "[variables('resourcesColumns')]"
+          },
+          "bootstrapColumns": {
+            "value": "[variables('bootstrapColumns')]"
+          },
+          "moduleLogsColumns": {
+            "value": "[variables('moduleLogsColumns')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "14722886718124069889"
+            }
+          },
+          "parameters": {
+            "workspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing Log Analytics workspace."
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "minValue": -1,
+              "metadata": {
+                "description": "Per-table retention in days. Use -1 to keep the workspace default."
+              }
+            },
+            "enableModuleLogs": {
+              "type": "bool",
+              "metadata": {
+                "description": "Whether to create the optional module log table."
+              }
+            },
+            "runsColumns": {
+              "type": "array",
+              "metadata": {
+                "description": "Run table column schema."
+              }
+            },
+            "resourcesColumns": {
+              "type": "array",
+              "metadata": {
+                "description": "Resource table column schema."
+              }
+            },
+            "bootstrapColumns": {
+              "type": "array",
+              "metadata": {
+                "description": "Bootstrap table column schema."
+              }
+            },
+            "moduleLogsColumns": {
+              "type": "array",
+              "metadata": {
+                "description": "Optional module log table column schema."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces/tables",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}/{1}', parameters('workspaceName'), 'DscOrchestrator_Runs_CL')]",
+              "properties": {
+                "retentionInDays": "[if(equals(parameters('retentionInDays'), -1), null(), parameters('retentionInDays'))]",
+                "schema": {
+                  "name": "DscOrchestrator_Runs_CL",
+                  "columns": "[parameters('runsColumns')]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.OperationalInsights/workspaces/tables",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}/{1}', parameters('workspaceName'), 'DscOrchestrator_Resources_CL')]",
+              "properties": {
+                "retentionInDays": "[if(equals(parameters('retentionInDays'), -1), null(), parameters('retentionInDays'))]",
+                "schema": {
+                  "name": "DscOrchestrator_Resources_CL",
+                  "columns": "[parameters('resourcesColumns')]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.OperationalInsights/workspaces/tables",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}/{1}', parameters('workspaceName'), 'DscOrchestrator_Bootstrap_CL')]",
+              "properties": {
+                "retentionInDays": "[if(equals(parameters('retentionInDays'), -1), null(), parameters('retentionInDays'))]",
+                "schema": {
+                  "name": "DscOrchestrator_Bootstrap_CL",
+                  "columns": "[parameters('bootstrapColumns')]"
+                }
+              }
+            },
+            {
+              "condition": "[parameters('enableModuleLogs')]",
+              "type": "Microsoft.OperationalInsights/workspaces/tables",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}/{1}', parameters('workspaceName'), 'DscOrchestrator_ModuleLogs_CL')]",
+              "properties": {
+                "retentionInDays": "[if(equals(parameters('retentionInDays'), -1), null(), parameters('retentionInDays'))]",
+                "schema": {
+                  "name": "DscOrchestrator_ModuleLogs_CL",
+                  "columns": "[parameters('moduleLogsColumns')]"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "dcrId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrName'))]"
+    },
+    "dceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dceName'))]"
+    },
+    "tableNames": {
+      "type": "array",
+      "value": "[concat(createArray('DscOrchestrator_Runs_CL', 'DscOrchestrator_Resources_CL', 'DscOrchestrator_Bootstrap_CL'), if(parameters('enableModuleLogs'), createArray('DscOrchestrator_ModuleLogs_CL'), createArray()))]"
+    }
+  }
+}

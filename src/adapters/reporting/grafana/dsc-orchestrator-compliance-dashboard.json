@@ -1,0 +1,5067 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "DSC Orchestrator compliance, drift, enforcement, and bootstrap status for managed VM groups. Uses DscOrchestrator Log Analytics tables and Azure Resource Graph.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Current State",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total VMs",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let scoped = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote});\nscoped\n| summarize arg_max(TimeGenerated, *) by Computer\n| extend State = case(had_errors == true, 'Errored', coalesce(non_compliant_count, 0) > 0, 'Non-Compliant', coalesce(compliant_resources, 0) > 0, 'Compliant', coalesce(skipped_count, 0) > 0, 'Skipped', coalesce(unevaluated_count, 0) > 0, 'Not Evaluated', 'Unknown')\n| where (isempty('${compliance_state:raw}') or '${compliance_state:raw}' == 'All' or State == '${compliance_state:raw}')\n| summarize Value=dcount(Computer)",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Distinct VMs reporting DSC Orchestrator runs in the selected time window."
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "% Compliant",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let scoped = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote});\nscoped\n| summarize arg_max(TimeGenerated, *) by Computer\n| extend State = case(had_errors == true, 'Errored', coalesce(non_compliant_count, 0) > 0, 'Non-Compliant', coalesce(compliant_resources, 0) > 0, 'Compliant', coalesce(skipped_count, 0) > 0, 'Skipped', coalesce(unevaluated_count, 0) > 0, 'Not Evaluated', 'Unknown')\n| where (isempty('${compliance_state:raw}') or '${compliance_state:raw}' == 'All' or State == '${compliance_state:raw}')\n| summarize Total=count(), Compliant=countif(State == 'Compliant')\n| extend Value = iif(Total > 0, 100.0 * Compliant / Total, 0.0)\n| project Value",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Share of VMs whose latest run reported zero non-compliant resources and no errors."
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "% with Drift",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 25
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "View drifted resources (latest run per VM)",
+              "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=$__all&var-fragment=$__all&var-compliance_state=Non-Compliant&viewPanel=18",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, *) by Computer\n| summarize Total=count(), NC=countif(non_compliant_count > 0)\n| extend Value = iif(Total > 0, 100.0 * NC / Total, 0.0)\n| project Value",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Share of VMs with one or more drifting resources at last run (by test verdict; a resource that errored without a verdict is counted as Failed, not drift). Click the value to open Resource Detail filtered to non-compliant resources for the current Group / VM / Config Version context."
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Stale VMs (>1h)",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true,
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Minutes Stale"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "orange",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 240
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "frameIndex": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, *) by Computer\n| where TimeGenerated < ago(1h)\n| extend ['Minutes Stale'] = toint(datetime_diff('minute', now(), TimeGenerated))\n| project VM=Computer, ['Minutes Stale']\n| order by ['Minutes Stale'] desc",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "transformations": [],
+      "description": "VMs whose latest DSC Orchestrator run in the selected window is older than one hour. Empty when fleet is healthy."
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "Resource Breakdown",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 12,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Compliant"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "oneClick": true,
+                    "targetBlank": false,
+                    "title": "Filter dashboard to Compliant",
+                    "url": "${__url.path}?${__url_time_range}&${group:queryparam}&${vm:queryparam}&var-run_id=${run_id:raw}&var-resource=${resource:raw}&var-compliance_state=Compliant"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Non-Compliant"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "oneClick": true,
+                    "targetBlank": false,
+                    "title": "Filter dashboard to Non-Compliant",
+                    "url": "${__url.path}?${__url_time_range}&${group:queryparam}&${vm:queryparam}&var-run_id=${run_id:raw}&var-resource=${resource:raw}&var-compliance_state=Non-Compliant"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "oneClick": true,
+                    "targetBlank": false,
+                    "title": "Filter dashboard to Failed",
+                    "url": "${__url.path}?${__url_time_range}&${group:queryparam}&${vm:queryparam}&var-run_id=${run_id:raw}&var-resource=${resource:raw}&var-compliance_state=Failed"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Skipped"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "oneClick": true,
+                    "targetBlank": false,
+                    "title": "Filter dashboard to Skipped",
+                    "url": "${__url.path}?${__url_time_range}&${group:queryparam}&${vm:queryparam}&var-run_id=${run_id:raw}&var-resource=${resource:raw}&var-compliance_state=Skipped"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not Evaluated"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "oneClick": true,
+                    "targetBlank": false,
+                    "title": "Filter dashboard to Not Evaluated",
+                    "url": "${__url.path}?${__url_time_range}&${group:queryparam}&${vm:queryparam}&var-run_id=${run_id:raw}&var-resource=${resource:raw}&var-compliance_state=Not Evaluated"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "pieType": "donut",
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let scoped = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote});\nscoped\n| summarize arg_max(TimeGenerated, *) by Computer\n| summarize Compliant = sum(coalesce(compliant_resources, 0)), ['Non-Compliant'] = sum(coalesce(non_compliant_count, 0)), Failed = sum(coalesce(failed_count, 0)), Skipped = sum(coalesce(skipped_count, 0)), ['Not Evaluated'] = sum(coalesce(unevaluated_count, 0))",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Breakdown of all resources across the selected VMs' latest runs into the five reconciling buckets (Compliant + Non-Compliant + Failed + Skipped + Not Evaluated = total resources). Compliant/Non-Compliant are the evaluated subset that drives Compliance %; Failed + Skipped + Not Evaluated are the coverage gap surfaced by Coverage %. Run-level errors are shown in the Errors & Investigation row, not here."
+    },
+    {
+      "id": 41,
+      "type": "table",
+      "title": "VM Inventory",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 7,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true,
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "frameIndex": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Resource Graph",
+          "subscriptions": [
+            "$subscription"
+          ],
+          "azureResourceGraph": {
+            "query": "resources\n| where type =~ 'microsoft.compute/virtualmachines'\n| where resourceGroup in~ (${resource_group:singlequote})\n| extend PowerState = tostring(properties.extended.instanceView.powerState.displayStatus)\n| project Name = name, Subscription = subscriptionId, ['Resource Group'] = resourceGroup, Location = location, PowerState, Tags = tostring(tags), ResourceId = id\n| order by ['Resource Group'] asc, Name asc",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "transformations": [],
+      "description": "Current virtual machines in the selected subscription and resource groups, including their tags and power state."
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Resource Compliance",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "gauge",
+      "title": "Overall Resource Compliance",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 6,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let latestRuns = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, *) by Computer;\nlatestRuns\n| summarize Comp=sum(compliant_resources), Failing=sum(non_compliant_count)\n| extend Value = iif((Comp + Failing) > 0, 100.0 * Comp / (Comp + Failing), 0.0)\n| project Value",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Resource compliance from each selected VM's latest run summary."
+    },
+    {
+      "id": 36,
+      "type": "gauge",
+      "title": "Resource Coverage",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 16,
+        "w": 6,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let latestRuns = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, *) by Computer;\nlatestRuns\n| summarize Evaluated=sum(compliant_resources) + sum(non_compliant_count), Total=sum(total_resources)\n| extend Value = iif(Total > 0, 100.0 * Evaluated / Total, 0.0)\n| project Value",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Share of declared resources actually evaluated (compliant + non-compliant) / total. Drops when resources are skipped (by-design), failed (errored before a verdict), or unevaluated (could not be reached) -- the evaluation-health signal, distinct from Compliance %."
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Compliance by Resource Type",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true,
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "links": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Resource Type"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View all resources of this type (latest run per VM)",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=${__data.fields[\"Resource Type\"]:percentencode}&var-fragment=$__all&var-compliance_state=All&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total Instances"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View all resources of this type (latest run per VM)",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=${__data.fields[\"Resource Type\"]:percentencode}&var-fragment=$__all&var-compliance_state=All&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View failed (errored) resources of this type",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=${__data.fields[\"Resource Type\"]:percentencode}&var-fragment=$__all&var-compliance_state=Failed&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% Compliant"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 80
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 90
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View compliant resources of this type",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=${__data.fields[\"Resource Type\"]:percentencode}&var-fragment=$__all&var-compliance_state=Compliant&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Non-Compliant"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View non-compliant (drifted) resources of this type",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=${__data.fields[\"Resource Type\"]:percentencode}&var-fragment=$__all&var-compliance_state=Non-Compliant&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "frameIndex": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let latestRuns = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, run_id) by Computer\n| project Computer, run_id;\nDscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where phase in ('test', 'verify')\n| join kind=inner latestRuns on Computer, run_id\n| summarize arg_max(TimeGenerated, *) by Computer, run_id, resource_type, resource_name\n| summarize Total=count(), Evaluated=countif(in_desired_state == true or in_desired_state == false), Compliant=countif(in_desired_state == true), Failed=countif(result == 'failed') by resource_type\n| extend ['% Compliant'] = iif(Evaluated > 0, 100.0 * Compliant / Evaluated, real(null))\n| extend Failing = Evaluated - Compliant\n| project ['Resource Type'] = resource_type, ['% Compliant'], ['Total Instances'] = Total, ['Non-Compliant'] = Failing, Failed\n| order by ['% Compliant'] asc",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "transformations": [],
+      "description": "Per-resource-type compliance scoped to resource rows from each selected VM's latest run. If a latest run emitted only a summary row, this panel intentionally does not backfill older resource rows."
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Compliance by Group",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true,
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "links": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Group"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View resources in this Group (latest run per VM)",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-group=${__data.fields[\"Group\"]:percentencode}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=$__all&var-fragment=$__all&var-compliance_state=All&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "VMs"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View resources in this Group (latest run per VM)",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-group=${__data.fields[\"Group\"]:percentencode}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=$__all&var-fragment=$__all&var-compliance_state=All&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Resources"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View resources in this Group (latest run per VM)",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-group=${__data.fields[\"Group\"]:percentencode}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=$__all&var-fragment=$__all&var-compliance_state=All&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% Compliant"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 80
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 90
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View compliant resources in this Group",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-group=${__data.fields[\"Group\"]:percentencode}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=$__all&var-fragment=$__all&var-compliance_state=Compliant&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Non-Compliant"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View non-compliant (drifted) resources in this Group",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-group=${__data.fields[\"Group\"]:percentencode}&${vm:queryparam}&${config_version:queryparam}&var-resource_type=$__all&var-fragment=$__all&var-compliance_state=Non-Compliant&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "frameIndex": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let latestRuns = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, *) by Computer;\nlatestRuns\n| summarize VMs=dcount(Computer), Resources=sum(total_resources), Failing=sum(non_compliant_count), Comp=sum(compliant_resources) by ['Group']=group\n| extend ['% Compliant'] = iif((Comp + Failing) > 0, 100.0 * Comp / (Comp + Failing), 0.0)\n| project ['Group'], VMs, Resources, ['Non-Compliant'] = Failing, ['% Compliant']\n| order by ['% Compliant'] asc, ['Non-Compliant'] desc",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "transformations": [],
+      "description": "Resource-level compliance by Group from each selected VM's latest run summary. Sorted worst-first."
+    },
+    {
+      "id": 37,
+      "type": "table",
+      "title": "Compliance by Fragment",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true,
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Fragment"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View all resources in this fragment (latest run)",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-fragment=${__data.fields[\"Fragment\"]:percentencode}&var-resource_type=$__all&var-compliance_state=All&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% Compliant"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null",
+                      "result": {
+                        "text": "N/A",
+                        "color": "transparent",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 80
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 90
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View compliant resources in this fragment",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-fragment=${__data.fields[\"Fragment\"]:percentencode}&var-resource_type=$__all&var-compliance_state=Compliant&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Resources"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View all resources in this fragment (latest run)",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-fragment=${__data.fields[\"Fragment\"]:percentencode}&var-resource_type=$__all&var-compliance_state=All&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Non-Compliant"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View non-compliant resources in this fragment",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-fragment=${__data.fields[\"Fragment\"]:percentencode}&var-resource_type=$__all&var-compliance_state=Non-Compliant&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View failed (errored) resources in this fragment",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-fragment=${__data.fields[\"Fragment\"]:percentencode}&var-resource_type=$__all&var-compliance_state=Failed&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Skipped"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View skipped resources in this fragment",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-fragment=${__data.fields[\"Fragment\"]:percentencode}&var-resource_type=$__all&var-compliance_state=Skipped&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not Eval"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View not-evaluated resources in this fragment",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${group:queryparam}&${vm:queryparam}&${config_version:queryparam}&var-fragment=${__data.fields[\"Fragment\"]:percentencode}&var-resource_type=$__all&var-compliance_state=Not%20Evaluated&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "frameIndex": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let latestRuns = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, run_id) by Computer\n| project Computer, run_id;\nDscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where phase in ('test', 'verify')\n| join kind=inner latestRuns on Computer, run_id\n| summarize arg_max(TimeGenerated, *) by Computer, run_id, resource_type, resource_name\n| extend frag = coalesce(fragment, '(unknown)')\n| summarize Resources=count(), Evaluated=countif(in_desired_state == true or in_desired_state == false), Compliant=countif(in_desired_state == true), Failed=countif(result == 'failed'), Skipped=countif(result == 'skipped'), ['Not Eval']=countif(result == 'unevaluated') by Fragment=frag\n| extend ['% Compliant'] = iif(Evaluated > 0, 100.0 * Compliant / Evaluated, real(null)), Failing = Evaluated - Compliant\n| project Fragment, ['% Compliant'], Resources, ['Non-Compliant'] = Failing, Failed, Skipped, ['Not Eval']\n| order by ['% Compliant'] asc, ['Non-Compliant'] desc",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "transformations": [],
+      "description": "Per-fragment (config object) compliance across selected VMs' latest runs. % Compliant is computed on evaluated resources only; Skipped + Not Eval are shown separately, not counted against it. Surfaces which config object contributes drift or skips."
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Trend",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "% Compliant VMs Over Time",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "axisSoftMax": 100,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "links": [
+            {
+              "title": "Open VM Compliance History",
+              "url": "${__url.path}?${__url_time_range}&${__all_variables}&viewPanel=panel-32",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let bucketSize = 1h;\nDscOrchestrator_Runs_CL\n| where TimeGenerated <= $__timeTo() and TimeGenerated >= datetime_add('day', -1, $__timeFrom())\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| extend State = case(had_errors == true, 'Errored', coalesce(non_compliant_count, 0) > 0, 'Non-Compliant', coalesce(compliant_resources, 0) > 0, 'Compliant', coalesce(skipped_count, 0) > 0, 'Skipped', coalesce(unevaluated_count, 0) > 0, 'Not Evaluated', 'Unknown')\n| where (isempty('${compliance_state:raw}') or '${compliance_state:raw}' == 'All' or State == '${compliance_state:raw}')\n| extend StateInt = case(State == 'Compliant', 1, State in ('Non-Compliant', 'Errored'), 0, -1)\n| where StateInt >= 0\n| summarize Latest = max(StateInt) by bin(TimeGenerated, bucketSize), Computer\n| make-series LatestSeries = max(Latest) default=long(null) on TimeGenerated from $__timeFrom() to $__timeTo() step bucketSize by Computer\n| extend LatestSeries = series_fill_forward(LatestSeries)\n| mv-expand TimeGenerated to typeof(datetime), LatestSeries to typeof(long)\n| where isnotnull(LatestSeries)\n| summarize Total = count(), Compliant = countif(LatestSeries == 1) by TimeGenerated\n| extend ['% Compliant'] = iif(Total > 0, 100.0 * Compliant / Total, 0.0)\n| project TimeGenerated, ['% Compliant']\n| order by TimeGenerated asc",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Share of VMs in 'Compliant' state per hour, applied to the current Group / VM filter. Each VM's last-known state is carried forward into any bucket where it didn't run, so missed reports don't produce spikes."
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "% Compliant Resources Over Time",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "axisSoftMax": 100,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "links": [
+            {
+              "title": "Open Resource Compliance History",
+              "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&${__all_variables}&viewPanel=33",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let bucketSize = 1h;\nDscOrchestrator_Runs_CL\n| where TimeGenerated <= $__timeTo() and TimeGenerated >= datetime_add('day', -1, $__timeFrom())\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, compliant_resources, non_compliant_count) by bin(TimeGenerated, bucketSize), Computer\n| project bucketTime = bin(TimeGenerated, bucketSize), Computer, Comp = compliant_resources, Failing = non_compliant_count\n| make-series Comp = max(Comp), Failing = max(Failing) default=long(null) on bucketTime from $__timeFrom() to $__timeTo() step bucketSize by Computer\n| extend Comp = series_fill_forward(Comp, long(null)), Failing = series_fill_forward(Failing, long(null))\n| mv-expand bucketTime to typeof(datetime), Comp to typeof(long), Failing to typeof(long)\n| where isnotnull(Comp)\n| summarize Comp = sum(Comp), Failing = sum(Failing) by bucketTime\n| extend ['% Compliant'] = iif((Comp + Failing) > 0, 100.0 * Comp / (Comp + Failing), 0.0)\n| project TimeGenerated = bucketTime, ['% Compliant']\n| order by TimeGenerated asc",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "description": "Resource-level compliance % per hour. Same math as the 'Overall Resource Compliance' gauge above, plotted over time with carry-forward per (VM, resource) so the line is stable when state is stable."
+    },
+    {
+      "id": 31,
+      "type": "row",
+      "title": "Compliance History",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 32,
+          "type": "table",
+          "title": "VM Compliance History",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 35,
+            "w": 24,
+            "h": 12
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 190
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "run_id"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Filter dashboard to this run",
+                        "url": "${__url.path}?${__url_time_range}&${__all_variables}&var-run_id=${__value.raw}",
+                        "targetBlank": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 300
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "State"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "Compliant": {
+                            "color": "green",
+                            "index": 0
+                          },
+                          "Non-Compliant": {
+                            "color": "yellow",
+                            "index": 1
+                          },
+                          "Failed": {
+                            "color": "semi-dark-red",
+                            "index": 4
+                          },
+                          "Errored": {
+                            "color": "red",
+                            "index": 2
+                          },
+                          "Unknown": {
+                            "color": "purple",
+                            "index": 3
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "links",
+                    "value": []
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where '${run_id:raw}' == '' or run_id == '${run_id:raw}'\n| extend State = case(had_errors == true, 'Errored', coalesce(non_compliant_count, 0) > 0, 'Non-Compliant', coalesce(compliant_resources, 0) > 0, 'Compliant', coalesce(skipped_count, 0) > 0, 'Skipped', coalesce(unevaluated_count, 0) > 0, 'Not Evaluated', 'Unknown')\n| where (isempty('${compliance_state:raw}') or '${compliance_state:raw}' == 'All' or State == '${compliance_state:raw}')\n| project TimeGenerated, Computer, run_id, State, Outcome = outcome, ResourceCount = total_resources, NonCompliantCount = non_compliant_count, Duration = total_duration, Mode = mode, Trigger = trigger\n| order by TimeGenerated desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Per-VM compliance state for every run in the selected time window. Respects VM and Run ID filters."
+        },
+        {
+          "id": 33,
+          "type": "table",
+          "title": "Resource Compliance History",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 47,
+            "w": 24,
+            "h": 12
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 190
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "run_id"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Filter dashboard to this run",
+                        "url": "${__url.path}?${__url_time_range}&${__all_variables}&var-run_id=${__value.raw}",
+                        "targetBlank": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 300
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "State"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "Compliant": {
+                            "color": "green",
+                            "index": 0
+                          },
+                          "Non-Compliant": {
+                            "color": "yellow",
+                            "index": 1
+                          },
+                          "Failed": {
+                            "color": "semi-dark-red",
+                            "index": 4
+                          },
+                          "Errored": {
+                            "color": "red",
+                            "index": 2
+                          },
+                          "Unknown": {
+                            "color": "purple",
+                            "index": 3
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "links",
+                    "value": []
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ErrorMessage"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto",
+                      "wrapText": true
+                    }
+                  },
+                  {
+                    "id": "custom.inspect",
+                    "value": true
+                  },
+                  {
+                    "id": "custom.minWidth",
+                    "value": 360
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "let runs = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where '${run_id:raw}' == '' or run_id == '${run_id:raw}'\n| project Computer, run_id, Mode = mode;\nDscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where '${run_id:raw}' == '' or run_id == '${run_id:raw}'\n| where phase in ('test', 'verify')\n| where '${resource}' == '' or resource_name contains '${resource}' or resource_type contains '${resource}'\n| join kind=leftouter runs on Computer, run_id\n| summarize arg_max(TimeGenerated, *) by Computer, run_id, resource_type, resource_name\n| extend State = case(result == 'skipped', 'Skipped', result == 'unevaluated', 'Not Evaluated', result == 'failed', 'Failed', in_desired_state == false, 'Non-Compliant', in_desired_state == true, 'Compliant', 'Unknown')\n| where (isempty('${compliance_state:raw}') or '${compliance_state:raw}' == 'All' or State == '${compliance_state:raw}')\n| project TimeGenerated, Computer, run_id, Fragment = coalesce(fragment, '(unknown)'), ResourceName = resource_name, ResourceType = resource_type, State, Mode, ErrorMessage = error_message\n| order by TimeGenerated desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Per-resource compliance state for every verify row in the selected time window. Respects VM and Resource filters."
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "VM Status",
+      "gridPos": {
+        "x": 0,
+        "y": 67,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Per-VM Status (Latest Run)",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 24,
+        "h": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true,
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Compliant": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Non-Compliant": {
+                        "color": "yellow",
+                        "index": 1
+                      },
+                      "Errored": {
+                        "color": "red",
+                        "index": 2
+                      },
+                      "Unknown": {
+                        "color": "purple",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "links",
+                "value": []
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Non-Compliant"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View non-compliant resources for this VM",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-vm=${__data.fields[\"Computer\"]}&var-compliance_state=Non-Compliant&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errors"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "true": {
+                        "color": "red",
+                        "text": "Yes",
+                        "index": 0
+                      },
+                      "false": {
+                        "color": "green",
+                        "text": "No",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View errored runs for this VM",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-vm=${__data.fields[\"Computer\"]}&viewPanel=20",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last Run"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "links",
+                "value": []
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Computer"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Filter dashboard to this VM",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-vm=${__value.raw}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Group"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Filter dashboard to this Group",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-group=${__value.raw}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Outcome"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": []
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Resources"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View all resources for this VM",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-vm=${__data.fields[\"Computer\"]}&viewPanel=18",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last Error"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View module log errors for this VM",
+                    "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-vm=${__data.fields[\"Computer\"]}&viewPanel=21",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": []
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mode"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": []
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trigger"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": []
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "frameIndex": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "let scoped = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote});\nscoped\n| summarize arg_max(TimeGenerated, *) by Computer\n| extend State = case(had_errors == true, 'Errored', coalesce(non_compliant_count, 0) > 0, 'Non-Compliant', coalesce(compliant_resources, 0) > 0, 'Compliant', coalesce(skipped_count, 0) > 0, 'Skipped', coalesce(unevaluated_count, 0) > 0, 'Not Evaluated', 'Unknown')\n| where (isempty('${compliance_state:raw}') or '${compliance_state:raw}' == 'All' or State == '${compliance_state:raw}')\n| extend errj = parse_json(error)\n| extend error_summary = coalesce(tostring(errj.summary), error)\n| extend first_failure = iff(array_length(errj.failures) > 0, errj.failures[0], dynamic(null))\n| extend first_fail_desc = iff(isnotnull(first_failure), strcat(tostring(first_failure.fragment), '/', tostring(first_failure.phase), ' ', tostring(first_failure.type), '/', tostring(first_failure.name)), '')\n| extend first_err = iff(array_length(erroring_resources) > 0, erroring_resources[0], dynamic(null))\n| extend failing_resource_type = tostring(first_err.type), failing_resource_message = tostring(first_err.message)\n| project Computer, ['Group'] = group, ['Last Run'] = TimeGenerated, State, Outcome = outcome, Resources = total_resources, ['Non-Compliant'] = non_compliant_count, Errors = had_errors, ['Error Summary'] = error_summary, ['First Failure'] = first_fail_desc, Duration = total_duration, Mode = mode, Trigger = trigger\n| order by State asc, ['Non-Compliant'] desc",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated",
+            "resultFormat": "table"
+          }
+        }
+      ],
+      "transformations": [],
+      "description": "One row per VM. State chip color-coded; sort by Non-Compliant to find biggest offenders."
+    },
+    {
+      "id": 38,
+      "type": "row",
+      "title": "In-Progress Runs",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 82,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 39,
+          "type": "table",
+          "title": "Currently Running Enforcements",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 75,
+            "w": 24,
+            "h": 10
+          },
+          "description": "DSC Orchestrator enforcements in flight right now: runs with per-resource rows in DscOrchestrator_Resources_CL but no completion row in DscOrchestrator_Runs_CL yet. Current Resource is the most recent resource the run touched. Empty when nothing is running.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "run_id"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Open full resource log for this run",
+                        "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?var-run_id=${__value.raw}&viewPanel=40&from=now-24h&to=now",
+                        "targetBlank": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "let completed = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| distinct run_id;\nDscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where run_id !in (completed)\n| summarize Started=min(TimeGenerated), arg_max(TimeGenerated, resource_type, resource_name, phase, event, in_desired_state, had_errors) by run_id, Computer, group, config_version\n| extend ['Age (min)'] = toint(datetime_diff('minute', now(), TimeGenerated))\n| extend ['Current Resource'] = strcat(case(event == 'start', 'remediating: ', event == 'end', 'remediated: ', in_desired_state == false, 'drifted: ', 'testing: '), resource_type, '/', resource_name)\n| project VM=Computer, ['Group']=group, ['Config Version']=config_version, Started, ['Age (min)'], ['Current Resource'], Phase=phase, run_id\n| order by Started desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": []
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "type": "row",
+      "title": "Bootstrap (VM App Install Diagnostics)",
+      "gridPos": {
+        "x": 0,
+        "y": 83,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 28,
+          "type": "stat",
+          "title": "Bootstrap Health (Latest Per Host)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 76,
+            "w": 12,
+            "h": 6
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "color": {
+                "mode": "fixed"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Success"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "green"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Fatal"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Preflight Only"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "yellow"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "auto",
+            "textMode": "value_and_name",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "let scoped = DscOrchestrator_Bootstrap_CL\n| where $__timeFilter(TimeGenerated)\n| where Computer in (${vm:singlequote});\nscoped\n| summarize arg_max(TimeGenerated, *) by Computer\n| summarize Success = countif(stage == 'success'), Fatal = countif(stage == 'fatal'), ['Preflight Only'] = countif(stage == 'preflight')",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "description": "Latest bootstrap row per host. Success = clean VM-App install; Fatal = unhandled bootstrap error; Preflight Only = PS7 resolved but install never reported success or fatal (incomplete). A host with no row at all never reached the bootstrap writer."
+        },
+        {
+          "id": 29,
+          "type": "piechart",
+          "title": "PowerShell 7 Source Distribution (Latest Per Host)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 76,
+            "w": 12,
+            "h": 6
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "hideFrom": {
+                  "tooltip": false,
+                  "viz": false,
+                  "legend": false
+                }
+              },
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "bundled"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "green"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "path"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": true
+            },
+            "pieType": "donut",
+            "displayLabels": [
+              "name",
+              "percent"
+            ],
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "right",
+              "values": [
+                "value"
+              ]
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "let scoped = DscOrchestrator_Bootstrap_CL\n| where $__timeFilter(TimeGenerated)\n| where Computer in (${vm:singlequote});\nscoped\n| summarize arg_max(TimeGenerated, *) by Computer\n| summarize Count = count() by pwsh_source\n| order by pwsh_source asc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "description": "Source PowerShell 7 was launched from on the latest bootstrap per host. 'bundled' is healthy (PS7 shipped in the VM App). Any 'path' slice means the bundled copy was missing and the launcher fell back to host PATH — a packaging regression worth investigating."
+        },
+        {
+          "id": 30,
+          "type": "table",
+          "title": "Recent Fatal Bootstrap Rows",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 82,
+            "w": 24,
+            "h": 10
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 180
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Computer"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 200
+                  },
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Filter dashboard to this VM",
+                        "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?${__url_time_range}&var-vm=${__value.raw}",
+                        "targetBlank": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "config_version"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 130
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "error_type"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 180
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "error_message"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto",
+                      "wrapText": true
+                    }
+                  },
+                  {
+                    "id": "custom.inspect",
+                    "value": true
+                  },
+                  {
+                    "id": "custom.minWidth",
+                    "value": 400
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "pwsh_source"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "bundled": {
+                            "color": "green",
+                            "index": 0
+                          },
+                          "path": {
+                            "color": "red",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 110
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "pwsh_version"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 110
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Bootstrap_CL\n| where $__timeFilter(TimeGenerated)\n| where Computer in (${vm:singlequote})\n| where stage == 'fatal'\n| project TimeGenerated, Computer, config_version, error_type, error_message, pwsh_source, pwsh_version\n| order by TimeGenerated desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "DscOrchestrator_Bootstrap_CL rows where stage == 'fatal'. Click a Computer cell to filter the rest of the dashboard to that VM. error_message wraps; expand a row to read the full text."
+        },
+        {
+          "id": 34,
+          "type": "table",
+          "title": "Bootstrap Stage History",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 92,
+            "w": 24,
+            "h": 10
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 180
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Exited At"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 180
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "Failed": {
+                            "color": "red",
+                            "index": 0
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 100
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "VM"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 180
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Command"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 420
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": true,
+              "reducer": [
+                "count"
+              ],
+              "countRows": true,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Bootstrap_CL\n| where $__timeFilter(TimeGenerated)\n| where Computer in (${vm:singlequote})\n| where config_version in (${config_version:singlequote})\n| project TimeGenerated, Computer, config_version, stage, status, message, error_type, error_message, pwsh_source, pwsh_version\n| order by TimeGenerated desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Bootstrap stage records, including status and error details when present."
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Drift Drilldown",
+      "gridPos": {
+        "x": 0,
+        "y": 100,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 17,
+          "type": "barchart",
+          "title": "Top Drifting Resources (by VM Impact)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 93,
+            "w": 24,
+            "h": 10
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "lineWidth": 1,
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "tooltip": false,
+                  "viz": false,
+                  "legend": false
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "orange"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "barWidth": 0.85,
+            "barRadius": 0,
+            "groupWidth": 0.7,
+            "showValue": "auto",
+            "stacking": "none",
+            "tooltip": {
+              "mode": "single"
+            },
+            "legend": {
+              "showLegend": false,
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "xTickLabelRotation": 0,
+            "xTickLabelSpacing": 0,
+            "xField": "Resource"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where phase == 'verify'\n| summarize arg_max(TimeGenerated, *) by Computer, resource_type, resource_name\n| where in_desired_state == false\n| summarize ImpactedVMs = dcount(Computer) by Resource = strcat(resource_type, ' / ', resource_name)\n| order by ImpactedVMs desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "description": "Resources NOT in desired state at the most recent verify phase. Filter is applied AFTER taking the latest row per (VM, resource), so resources that drifted earlier but have since converged are excluded."
+        },
+        {
+          "id": 18,
+          "type": "table",
+          "title": "Resource Detail",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 103,
+            "w": 24,
+            "h": 12
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Last Seen"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "let latestRuns = DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| summarize arg_max(TimeGenerated, run_id, enforcement_id) by group, Computer\n| project group, Computer, run_id, enforcement_id;\nDscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where resource_type in (${resource_type:singlequote})\n| where coalesce(fragment, '(unknown)') in (${fragment:singlequote})\n| where phase in ('test', 'verify')\n| join kind=inner latestRuns on group, Computer, run_id\n| project-away group1, Computer1, run_id1\n| summarize arg_max(TimeGenerated, *) by group, Computer, run_id, resource_type, resource_name\n| extend State = case(result == 'skipped', 'Skipped', result == 'unevaluated', 'Not Evaluated', result == 'failed', 'Failed', in_desired_state == false, 'Non-Compliant', in_desired_state == true, 'Compliant', 'Unknown')\n| where (isempty('${compliance_state:raw}') or '${compliance_state:raw}' == 'All' or State == '${compliance_state:raw}')\n| project Computer, ['Group'] = group, ['Config Version'] = config_version, ['Fragment'] = coalesce(fragment, '(unknown)'), ['Resource Type'] = resource_type, ['Resource Name'] = resource_name, ['Module'] = adapter, State, Result = result, Compliant = iff(State == 'Compliant', 'Yes', 'No'), Phase = phase, Reasons = tostring(reasons), Action = action, ['Error'] = error_message, ['Last Seen'] = TimeGenerated, Duration = duration, ['Run ID'] = run_id, ['Enforcement ID'] = enforcement_id\n| order by State desc, ['Last Seen'] desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Per-VM resource detail with reasons, bound to each VM's latest DSC Orchestrator run inside the selected Group / VM / Config Version context. VM identity is (group, Computer), not Computer alone, so the same VM name appearing in two selected Groups keeps a separate latest run and a separate set of rows for each pool instead of one pool's run silently displacing the other's. One row per Group x Computer x run_id x resource_type x resource_name (latest test OR verify record), so repeated telemetry events for the same resource do not duplicate. The join to the latest-run set is on group, Computer and run_id, and the duplicate right-hand key columns it produces are projected away immediately, so no ambiguous group column reaches the output. Also scoped by Resource Type / Fragment / Compliance State. Phase shows whether the row came from a pre-set test or a post-set verify; verify rows are the authoritative post-remediation state when present. Module is the DSC adapter hosting the resource. Enforcement ID comes from the latest run, because DscOrchestrator_Resources_CL does not carry that column. If a VM's latest run emitted only a summary row, that VM contributes no rows here."
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "row",
+      "title": "Errors & Investigation",
+      "gridPos": {
+        "x": 0,
+        "y": 123,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 20,
+          "type": "table",
+          "title": "Recent Errored Runs (DSC Orchestrator run-level)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 116,
+            "w": 24,
+            "h": 14
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "RunId"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Investigate this run (sets Run ID variable)",
+                        "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?var-run_id=${__value.raw}",
+                        "targetBlank": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Error"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "custom.inspect",
+                    "value": true
+                  },
+                  {
+                    "id": "custom.minWidth",
+                    "value": 300
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Runs_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where had_errors == true\n| extend errj = parse_json(error)\n| extend error_summary = coalesce(tostring(errj.summary), error)\n| extend diagnostic_text = strcat(error_summary, ' ', tostring(erroring_resources))\n| extend error_class = case(diagnostic_text contains 'module not found', 'module_not_found', diagnostic_text contains 'timeout' or diagnostic_text contains 'timed out', 'timeout', diagnostic_text contains 'JSON parse', 'json_parse', diagnostic_text contains 'drift persisted', 'drift_persisted', 'unknown')\n| project TimeGenerated, Computer, ['Group'] = group, Outcome = outcome, error_class, ['Exit Code'] = exit_code, RunId = run_id, Error = error_summary, ['Non-Compliant'] = non_compliant_count\n| order by TimeGenerated desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "DscOrchestrator_Runs_CL rows where had_errors=true or error is non-empty. Click a RunId to set the Run ID variable — both the Module Log Errors table (below) and the Full Trace panel further down will filter to that run."
+        },
+        {
+          "id": 35,
+          "type": "table",
+          "title": "Skipped Fragments (dependency gate)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 130,
+            "w": 24,
+            "h": 10
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Fragment"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "yellow"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Blocked By"
+                },
+                "properties": [
+                  {
+                    "id": "custom.minWidth",
+                    "value": 200
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "failed": {
+                            "color": "red",
+                            "index": 0
+                          },
+                          "non_compliant": {
+                            "color": "orange",
+                            "index": 1
+                          },
+                          "unevaluated": {
+                            "color": "yellow",
+                            "index": 2
+                          },
+                          "skipped": {
+                            "color": "blue",
+                            "index": 3
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "RunId"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Investigate this run (sets Run ID variable)",
+                        "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?var-run_id=${__value.raw}",
+                        "targetBlank": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where result == 'skipped'\n| extend errj = parse_json(error_message)\n| where tostring(errj.tag) == 'fragment_skipped'\n| summarize arg_max(TimeGenerated, error_message, group) by run_id, Computer, fragment\n| extend errj = parse_json(error_message)\n| mv-expand d = errj.blockedByDetail\n| project TimeGenerated, Computer, ['Group'] = group, Fragment = fragment, ['Blocked By'] = tostring(d.name), Status = tostring(d.status), Reason = tostring(errj.reason), RunId = run_id\n| order by TimeGenerated desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Fragments skipped by the cross-fragment dependency gate because a dependency did not reach strict success. One row per blocking dependency, with its terminal Status (failed / non_compliant / unevaluated / skipped). Sourced from parse_json(error_message).blockedByDetail[] on the 'skipped' resource rows in DscOrchestrator_Resources_CL. Click a RunId to pivot the run-scoped panels to that run."
+        },
+        {
+          "id": 22,
+          "type": "table",
+          "title": "Drift Reasons (why is this resource non-compliant?)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 154,
+            "w": 24,
+            "h": 10
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Last Seen"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Resource Name"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Filter Module Log Errors + Full Trace to this resource",
+                        "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?var-resource=${__value.raw}",
+                        "targetBlank": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where phase == 'verify'\n| summarize arg_max(TimeGenerated, *) by Computer, resource_type, resource_name\n| where in_desired_state == false\n| mv-expand r = reasons\n| extend ['Reason Code'] = tostring(r.code), ['Reason Phrase'] = tostring(r.phrase)\n| project Computer, ['Fragment'] = coalesce(fragment, '(unknown)'), ['Resource Name'] = resource_name, ['Resource Type'] = resource_type, ['Reason Code'], ['Reason Phrase'], ['Last Seen'] = TimeGenerated\n| order by ['Last Seen'] desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Structured reason from DSC Orchestrator Test phase, one row per (VM, resource, reason). Tells you WHY the resource isn't in desired state. Click a Resource Name cell to filter the Module Log Errors / Full Trace panels below to logs about that resource (contains-match against app_context or message)."
+        },
+        {
+          "id": 40,
+          "type": "table",
+          "title": "Run Resource Log (chronological, all events)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 182,
+            "w": 24,
+            "h": 18
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Reasons"
+                },
+                "properties": [
+                  {
+                    "id": "custom.inspect",
+                    "value": true
+                  },
+                  {
+                    "id": "custom.minWidth",
+                    "value": 300
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Error Message"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "custom.inspect",
+                    "value": true
+                  },
+                  {
+                    "id": "custom.minWidth",
+                    "value": 500
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where run_id == '${run_id}'\n| project TimeGenerated, Computer, Phase=phase, Event=event, Action=action, Fragment=coalesce(fragment, '(unknown)'), ['Resource Type']=resource_type, ['Resource Name']=resource_name, ['In Desired State']=in_desired_state, ['Had Errors']=had_errors, Result=result, Reasons=tostring(reasons), ['Error Message']=error_message, Duration=duration\n| order by TimeGenerated asc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Full chronological per-event resource log for the run_id set in the variable -- every test/set/verify event row from DscOrchestrator_Resources_CL, oldest first (no dedup). Reached from the run_id link in Currently Running Enforcements. Empty when no Run ID is set."
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "type": "row",
+      "title": "Module logs (optional)",
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 21,
+          "type": "table",
+          "title": "Recent Module Log Errors & Warnings (VM-side)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 140,
+            "w": 24,
+            "h": 14
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Level"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "Error": {
+                            "color": "red",
+                            "index": 0
+                          },
+                          "Warning": {
+                            "color": "yellow",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "RunId"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Investigate this run (sets Run ID variable)",
+                        "url": "/d/${__dashboard.uid}/dsc-orchestrator-compliance?var-run_id=${__value.raw}",
+                        "targetBlank": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Message"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "custom.inspect",
+                    "value": true
+                  },
+                  {
+                    "id": "custom.minWidth",
+                    "value": 400
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_ModuleLogs_CL\n| where $__timeFilter(TimeGenerated)\n| where level in ('Error', 'Warning')\n| extend ShortComputer = extract(@\"^([^.]+)\", 1, Computer)\n| where ShortComputer in (${vm:singlequote})\n| where '${run_id}' == '' or run_id == '${run_id}'\n| where '${resource}' == '' or app_context contains '${resource}' or message contains '${resource}'\n| extend LevelPriority = case(level == 'Error', 0, 1)\n| extend MessageClean = replace_regex(replace_regex(message, @\"[ \\\\/|\\-]{4,}\", \" \"), @\"\\s{2,}\", \" \")\n| project TimeGenerated, VM=ShortComputer, Level=level, Module=module_name, Function=function_name, Context=app_context, RunId=run_id, Message=MessageClean, LevelPriority\n| order by LevelPriority asc, TimeGenerated desc\n| project-away LevelPriority",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Module error and warning rows. This panel requires module log collection to be enabled."
+        },
+        {
+          "id": 23,
+          "type": "table",
+          "title": "Full Trace for Run ID (paste/click run_id above)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 166,
+            "w": 24,
+            "h": 16
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "TimeGenerated"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Level"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "Error": {
+                            "color": "red",
+                            "index": 0
+                          },
+                          "Warning": {
+                            "color": "yellow",
+                            "index": 1
+                          },
+                          "Info": {
+                            "color": "blue",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Message"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "custom.inspect",
+                    "value": true
+                  },
+                  {
+                    "id": "custom.minWidth",
+                    "value": 500
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_ModuleLogs_CL\n| where $__timeFilter(TimeGenerated)\n| where run_id == '${run_id}'\n| where '${resource}' == '' or app_context contains '${resource}' or message contains '${resource}'\n| extend MessageClean = replace_regex(replace_regex(message, @\"[ \\\\/|\\-]{4,}\", \" \"), @\"\\s{2,}\", \" \")\n| project TimeGenerated, Level=level, Module=module_name, Function=function_name, Context=app_context, Message=MessageClean\n| order by TimeGenerated asc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Module error and warning rows. This panel requires module log collection to be enabled."
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "row",
+      "title": "Resource Timing",
+      "gridPos": {
+        "x": 0,
+        "y": 180,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 25,
+          "type": "table",
+          "title": "Slowest Resources (all phases)",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 173,
+            "w": 14,
+            "h": 12
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Max"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "gradient"
+                    }
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 30
+                        },
+                        {
+                          "color": "orange",
+                          "value": 120
+                        },
+                        {
+                          "color": "red",
+                          "value": 300
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Avg"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 30
+                        },
+                        {
+                          "color": "red",
+                          "value": 120
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "P95"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Phase"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "set": {
+                            "color": "orange",
+                            "index": 0
+                          },
+                          "test": {
+                            "color": "blue",
+                            "index": 1
+                          },
+                          "verify": {
+                            "color": "green",
+                            "index": 2
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where isnotempty(duration)\n| extend _H = todouble(coalesce(extract(@\"PT([\\d.]+)H\", 1, duration), \"0\"))\n| extend _M = todouble(coalesce(extract(@\"H([\\d.]+)M\", 1, duration), extract(@\"PT([\\d.]+)M\", 1, duration), \"0\"))\n| extend _S = todouble(coalesce(extract(@\"M([\\d.]+)S\", 1, duration), extract(@\"H([\\d.]+)S\", 1, duration), extract(@\"PT([\\d.]+)S\", 1, duration), \"0\"))\n| extend DurSec = _H * 3600 + _M * 60 + _S\n| summarize Max=round(max(DurSec), 1), Avg=round(avg(DurSec), 1), P95=round(percentile(DurSec, 95), 1), Runs=count() by Phase=phase, ['Resource Type']=resource_type, ['Resource Name']=resource_name\n| order by Max desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Per-resource execution time, all phases (test/set/verify). Sort by Max to find spikes, Avg for consistent offenders. Set phase = install/configure step (this is the slow one)."
+        },
+        {
+          "id": 26,
+          "type": "barchart",
+          "title": "Avg Set Duration by Resource",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 14,
+            "y": 173,
+            "w": 10,
+            "h": 12
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "lineWidth": 1,
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "tooltip": false,
+                  "viz": false,
+                  "legend": false
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "orange"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "barWidth": 0.85,
+            "barRadius": 0,
+            "groupWidth": 0.7,
+            "showValue": "auto",
+            "stacking": "none",
+            "tooltip": {
+              "mode": "single"
+            },
+            "legend": {
+              "showLegend": false,
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "xTickLabelRotation": 0,
+            "xTickLabelSpacing": 0,
+            "xField": "Resource"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Log Analytics",
+              "azureLogAnalytics": {
+                "resources": [
+                  "${la_resource_id}"
+                ],
+                "query": "DscOrchestrator_Resources_CL\n| where $__timeFilter(TimeGenerated)\n| where group in (${group:singlequote})\n| where role in~ (${role:singlequote})\n| where config_version in (${config_version:singlequote})\n| where Computer in (${vm:singlequote})\n| where phase == 'set'\n| where isnotempty(duration)\n| extend _H = todouble(coalesce(extract(@\"PT([\\d.]+)H\", 1, duration), \"0\"))\n| extend _M = todouble(coalesce(extract(@\"H([\\d.]+)M\", 1, duration), extract(@\"PT([\\d.]+)M\", 1, duration), \"0\"))\n| extend _S = todouble(coalesce(extract(@\"M([\\d.]+)S\", 1, duration), extract(@\"H([\\d.]+)S\", 1, duration), extract(@\"PT([\\d.]+)S\", 1, duration), \"0\"))\n| extend DurSec = _H * 3600 + _M * 60 + _S\n| summarize AvgSec=round(avg(DurSec), 1) by Resource=resource_name\n| order by AvgSec desc",
+                "dashboardTime": true,
+                "timeColumn": "TimeGenerated",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "description": "Average duration of the Set phase (install/configure step) per resource. Quickly identifies the worst offenders."
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "row",
+      "title": "Resource Graph Inventory",
+      "gridPos": {
+        "x": 0,
+        "y": 181,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 43,
+          "type": "table",
+          "title": "VMs by Tag",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 182,
+            "w": 24,
+            "h": 12
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": true,
+                "filterable": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "countRows": false,
+              "fields": ""
+            },
+            "frameIndex": 0
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-azure-monitor-datasource",
+                "uid": "${datasource}"
+              },
+              "queryType": "Azure Resource Graph",
+              "subscriptions": [
+                "$subscription"
+              ],
+              "azureResourceGraph": {
+                "query": "resources\n| where type =~ 'microsoft.compute/virtualmachines'\n| where resourceGroup in~ (${resource_group:singlequote})\n| mv-expand TagName = bag_keys(tags)\n| extend TagValue = tostring(tags[tostring(TagName)])\n| summarize VMs = dcount(id) by TagName = tostring(TagName), TagValue\n| order by TagName asc, VMs desc",
+                "resultFormat": "table"
+              }
+            }
+          ],
+          "transformations": [],
+          "description": "Counts current virtual machines by tag name and value in the selected subscription and resource groups."
+        }
+      ]
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": [
+    "dsc-orchestrator",
+    "compliance"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "label": "Datasource",
+        "query": "grafana-azure-monitor-datasource",
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "la_resource_id",
+        "type": "constant",
+        "label": "LA Workspace Resource ID",
+        "description": "Full ARM resource ID of the Log Analytics workspace receiving DSC Orchestrator streams. Set once per environment.",
+        "query": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/PLACEHOLDER/providers/Microsoft.OperationalInsights/workspaces/PLACEHOLDER",
+        "current": {
+          "selected": true,
+          "text": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/PLACEHOLDER/providers/Microsoft.OperationalInsights/workspaces/PLACEHOLDER",
+          "value": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/PLACEHOLDER/providers/Microsoft.OperationalInsights/workspaces/PLACEHOLDER"
+        },
+        "hide": 2,
+        "skipUrlSync": true
+      },
+      {
+        "name": "subscription",
+        "type": "query",
+        "label": "Subscription",
+        "description": "Azure subscription used by the Resource Graph inventory panels.",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": "Subscriptions()",
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "includeAll": false,
+        "multi": false,
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "Subscriptions()"
+      },
+      {
+        "name": "group",
+        "type": "query",
+        "label": "Group",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Runs_CL | where TimeGenerated > ago(7d) | distinct group | order by group asc"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "DscOrchestrator_Runs_CL | where TimeGenerated > ago(7d) | distinct group | order by group asc",
+        "description": "Logical deployment group recorded by the Azure Monitor reporting adapter."
+      },
+      {
+        "name": "role",
+        "type": "query",
+        "label": "Role",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Runs_CL\n| where TimeGenerated > ago(7d)\n| where group in~ (${group:singlequote})\n| distinct role\n| order by role asc"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "DscOrchestrator_Runs_CL\n| where TimeGenerated > ago(7d)\n| where group in~ (${group:singlequote})\n| distinct role\n| order by role asc",
+        "description": "Logical role recorded by the Azure Monitor reporting adapter."
+      },
+      {
+        "name": "resource_group",
+        "type": "query",
+        "label": "Resource Group",
+        "description": "Resource group filter for the Resource Graph inventory panels.",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "queryType": "Azure Resource Graph",
+          "refId": "A",
+          "subscriptions": [
+            "$subscription"
+          ],
+          "azureResourceGraph": {
+            "query": "resources\n| where type =~ 'microsoft.compute/virtualmachines'\n| where isnotempty(resourceGroup)\n| distinct resourceGroup\n| order by resourceGroup asc",
+            "resultFormat": "table"
+          }
+        },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "resources\n| where type =~ 'microsoft.compute/virtualmachines'\n| where isnotempty(resourceGroup)\n| distinct resourceGroup\n| order by resourceGroup asc",
+        "allValue": "*"
+      },
+      {
+        "name": "vm",
+        "type": "query",
+        "label": "VM",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Runs_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | distinct Computer | order by Computer asc"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "DscOrchestrator_Runs_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | distinct Computer | order by Computer asc"
+      },
+      {
+        "name": "config_version",
+        "type": "query",
+        "label": "Config Version",
+        "description": "Filter to one or more DSC Orchestrator config versions. Auto-populated from logs and cascades from the Group and VM selections. Sorted by most-recent activity (newest deployment first). Default All = every version (no restriction).\n\nFilters these panels:\n• Overview row: Total VMs, % Compliant, % with Drift, Stale VMs (>1h), Resource Breakdown\n• Compliance row: Overall Resource Compliance, Compliance by Resource Type, Compliance by Group\n• Trends row: % Compliant VMs Over Time, % Compliant Resources Over Time\n• History row: VM Compliance History, Resource Compliance History\n• Detail rows: Per-VM Status (Latest Run), Bootstrap Stage History, Top Drifting Resources, Resource Detail\n• Diagnostics: Recent Errored Runs, Drift Reasons\n• Performance: Slowest Resources, Avg Set Duration by Resource\n\nDoes NOT filter (bootstrap/module-log panels — they don't carry config_version): Bootstrap Health, PowerShell 7 Source Distribution, Recent Fatal Bootstrap Rows, Recent Module Log Errors & Warnings, Full Trace for Run ID.",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Runs_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | where Computer in (${vm:singlequote}) | summarize MaxTime = max(TimeGenerated) by config_version | order by MaxTime desc | project config_version"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "regex": "",
+        "sort": 0,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "DscOrchestrator_Runs_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | where Computer in (${vm:singlequote}) | summarize MaxTime = max(TimeGenerated) by config_version | order by MaxTime desc | project config_version"
+      },
+      {
+        "name": "resource_type",
+        "type": "query",
+        "label": "Resource Type",
+        "description": "Filter Resource Detail (and related panels) to a specific DSC resource_type. Auto-populated and cascades from Group / VM / Config Version. Click a Resource Type cell in Compliance by Resource Type to set automatically.",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Resources_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | where Computer in (${vm:singlequote}) | where config_version in (${config_version:singlequote}) | distinct resource_type | order by resource_type asc"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "DscOrchestrator_Resources_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | where Computer in (${vm:singlequote}) | where config_version in (${config_version:singlequote}) | distinct resource_type | order by resource_type asc"
+      },
+      {
+        "name": "fragment",
+        "type": "query",
+        "label": "Fragment",
+        "description": "Filter Resource Detail to a specific config fragment. Auto-populated; cascades from Group / VM / Config Version. Click a row in Compliance by Fragment to set automatically.",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "azureLogAnalytics": {
+            "resources": [
+              "${la_resource_id}"
+            ],
+            "query": "DscOrchestrator_Resources_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | where Computer in (${vm:singlequote}) | where config_version in (${config_version:singlequote}) | extend Fragment = coalesce(fragment, '(unknown)') | distinct Fragment | order by Fragment asc"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "definition": "DscOrchestrator_Resources_CL | where TimeGenerated > ago(7d) | where group in (${group:singlequote})\n| where role in~ (${role:singlequote}) | where Computer in (${vm:singlequote}) | where config_version in (${config_version:singlequote}) | extend Fragment = coalesce(fragment, '(unknown)') | distinct Fragment | order by Fragment asc"
+      },
+      {
+        "name": "run_id",
+        "type": "textbox",
+        "label": "Run ID (Investigate trace)",
+        "description": "Paste a run_id from the Recent Errored Runs table to see the full module-log trace for that run.",
+        "query": "",
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "resource",
+        "type": "textbox",
+        "label": "Resource (Investigate)",
+        "description": "Filter Module Log Errors and Full Trace to a specific resource (e.g. '7zip', 'C:\\\\inetpub'). Matches app_context or message via contains. Click a Resource Name cell in Drift Reasons to set automatically.",
+        "query": "",
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "compliance_state",
+        "type": "custom",
+        "label": "Compliance State",
+        "description": "Filter dashboard panels by canonical State. All = unfiltered. 'Not Evaluated' = resource-level rows the runtime emitted as safety nets when dsc.exe crashed before testing them (per-resource attribution from the unevaluated path); they are NOT non-compliant and should not count against compliance %.",
+        "query": "All,Compliant,Non-Compliant,Failed,Errored,Skipped,Not Evaluated",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "All"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "All"
+          },
+          {
+            "selected": false,
+            "text": "Compliant",
+            "value": "Compliant"
+          },
+          {
+            "selected": false,
+            "text": "Non-Compliant",
+            "value": "Non-Compliant"
+          },
+          {
+            "selected": false,
+            "text": "Failed",
+            "value": "Failed"
+          },
+          {
+            "selected": false,
+            "text": "Errored",
+            "value": "Errored"
+          },
+          {
+            "selected": false,
+            "text": "Skipped",
+            "value": "Skipped"
+          },
+          {
+            "selected": false,
+            "text": "Not Evaluated",
+            "value": "Not Evaluated"
+          }
+        ],
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "DSC Orchestrator Compliance",
+  "uid": "dsc-orchestrator-compliance",
+  "weekStart": "",
+  "version": 1
+}

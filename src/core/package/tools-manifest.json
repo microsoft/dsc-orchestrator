@@ -1,0 +1,20 @@
+{
+  "tools": {
+    "dsc": {
+      "name": "PowerShell DSC",
+      "version": "3.2.0",
+      "architecture": "x86_64-pc-windows-msvc",
+      "sourceUrl": "https://github.com/PowerShell/DSC/releases/download/v3.2.0/DSC-3.2.0-x86_64-pc-windows-msvc.zip",
+      "archiveSha256": "638f5e93197ebe64d6d15de743773728e0f0ed22407bd4decc69581e42d43194",
+      "binaryPath": "dsc.exe"
+    },
+    "pwsh": {
+      "name": "PowerShell 7",
+      "version": "7.6.2",
+      "architecture": "win-x64",
+      "sourceUrl": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.2/PowerShell-7.6.2-win-x64.zip",
+      "archiveSha256": "32e0dd26752483ba3f0e40e9ae44150643cbff469c13210c93295d158bfd7b26",
+      "binaryPath": "pwsh.exe"
+    }
+  }
+}

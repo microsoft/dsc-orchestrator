@@ -1,0 +1,146 @@
+parameters:
+  # Name of the caller-owned Azure Resource Manager service connection.
+  - name: azureServiceConnection
+    type: string
+
+  # Optional assertion against the subscription selected by the service connection.
+  - name: subscription
+    type: string
+    default: ''
+
+  # Storage location for the package ZIP.
+  - name: storageAccountName
+    type: string
+  - name: storageAccountResourceGroup
+    type: string
+  - name: containerName
+    type: string
+
+  # Gallery application destination; blank galleryResourceGroup uses the storage account RG.
+  - name: galleryResourceGroup
+    type: string
+    default: ''
+  - name: galleryName
+    type: string
+  - name: applicationName
+    type: string
+
+  # Source region is always replicated; a blank targetRegions value lets the adapter discover VM regions.
+  - name: sourceRegion
+    type: string
+  - name: targetRegions
+    type: string
+    default: ''
+
+  # Used for region discovery when targetRegions is blank and by the Deploy stage.
+  - name: targetResourceGroup
+    type: string
+
+steps:
+  - task: DownloadPipelineArtifact@2
+    displayName: Download package ZIP artifact
+    inputs:
+      buildType: current
+      artifactName: orchestrator-package
+      targetPath: '$(Pipeline.Workspace)\orchestrator-package'
+
+  - task: AzurePowerShell@5
+    name: publishVmApp
+    displayName: Publish package as a gallery VM Application version
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      ScriptType: InlineScript
+      Inline: |
+        $ErrorActionPreference = 'Stop'
+        $repoRoot = '$(Build.SourcesDirectory)'
+        $artifactDirectory = '$(Pipeline.Workspace)\orchestrator-package'
+        $packageFiles = @(Get-ChildItem -LiteralPath $artifactDirectory -Filter '*.zip' -File -ErrorAction Stop)
+        if ($packageFiles.Count -ne 1) {
+            throw "Expected exactly one package ZIP in '$artifactDirectory'; found $($packageFiles.Count)."
+        }
+        $packageFile = $packageFiles[0]
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($packageFile.FullName)
+        try {
+            $manifestEntry = $archive.GetEntry('manifest.json')
+            if ($null -eq $manifestEntry) {
+                throw "Package ZIP '$($packageFile.FullName)' does not contain a root manifest.json."
+            }
+            $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
+            try {
+                $manifest = ConvertFrom-Json -InputObject $reader.ReadToEnd() -ErrorAction Stop
+            }
+            finally {
+                $reader.Dispose()
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+        if ([string]$manifest.version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Package manifest contains an invalid version: '$($manifest.version)'."
+        }
+
+        $targetRegions = @()
+        if (-not [string]::IsNullOrWhiteSpace($env:ORCHESTRATOR_TARGET_REGIONS)) {
+            $targetRegions = @(
+                $env:ORCHESTRATOR_TARGET_REGIONS -split ',' |
+                    ForEach-Object { $_.Trim() } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+        }
+        $publishParameters = @{
+            PackagePath = $packageFile.FullName
+            StorageAccountName = $env:ORCHESTRATOR_STORAGE_ACCOUNT_NAME
+            StorageAccountResourceGroup = $env:ORCHESTRATOR_STORAGE_ACCOUNT_RESOURCE_GROUP
+            ContainerName = $env:ORCHESTRATOR_CONTAINER_NAME
+            GalleryName = $env:ORCHESTRATOR_GALLERY_NAME
+            GalleryResourceGroup = $env:ORCHESTRATOR_GALLERY_RESOURCE_GROUP
+            ApplicationName = $env:ORCHESTRATOR_APPLICATION_NAME
+            Version = [string]$manifest.version
+            Location = $env:ORCHESTRATOR_SOURCE_REGION
+            VMResourceGroupName = $env:ORCHESTRATOR_TARGET_RESOURCE_GROUP
+            TargetRegions = $targetRegions
+            IfExists = 'Fail'
+        }
+        if (-not [string]::IsNullOrWhiteSpace($env:ORCHESTRATOR_SUBSCRIPTION)) {
+            $publishParameters.SubscriptionId = $env:ORCHESTRATOR_SUBSCRIPTION
+        }
+
+        $publishOutput = @(
+            & (Join-Path $repoRoot 'src\adapters\delivery\azure-vmapp\Publish-DSCv3VMApp.ps1') @publishParameters
+        )
+        $publishResults = @(
+            $publishOutput | Where-Object {
+                $null -ne $_ -and
+                $_.PSObject.Properties.Name -contains 'VMAppVersionId'
+            }
+        )
+        if ($publishResults.Count -ne 1) {
+            throw 'Publish-DSCv3VMApp.ps1 did not return exactly one publish result.'
+        }
+        $publishResult = $publishResults[0]
+        if ([string]$publishResult.Version -ne [string]$manifest.version) {
+            throw "Published version '$($publishResult.Version)' does not match the package manifest version '$($manifest.version)'."
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$publishResult.VMAppVersionId)) {
+            throw 'Publish-DSCv3VMApp.ps1 returned an empty VM Application version resource ID.'
+        }
+        Write-Host "##vso[task.setvariable variable=vmAppVersionResourceId;isOutput=true]$($publishResult.VMAppVersionId)"
+      azurePowerShellVersion: LatestVersion
+      errorActionPreference: Stop
+      FailOnStandardError: false
+      pwsh: true
+      workingDirectory: '$(Build.SourcesDirectory)'
+    env:
+      ORCHESTRATOR_SUBSCRIPTION: ${{ parameters.subscription }}
+      ORCHESTRATOR_STORAGE_ACCOUNT_NAME: ${{ parameters.storageAccountName }}
+      ORCHESTRATOR_STORAGE_ACCOUNT_RESOURCE_GROUP: ${{ parameters.storageAccountResourceGroup }}
+      ORCHESTRATOR_CONTAINER_NAME: ${{ parameters.containerName }}
+      ORCHESTRATOR_GALLERY_RESOURCE_GROUP: ${{ parameters.galleryResourceGroup }}
+      ORCHESTRATOR_GALLERY_NAME: ${{ parameters.galleryName }}
+      ORCHESTRATOR_APPLICATION_NAME: ${{ parameters.applicationName }}
+      ORCHESTRATOR_SOURCE_REGION: ${{ parameters.sourceRegion }}
+      ORCHESTRATOR_TARGET_REGIONS: ${{ parameters.targetRegions }}
+      ORCHESTRATOR_TARGET_RESOURCE_GROUP: ${{ parameters.targetResourceGroup }}
