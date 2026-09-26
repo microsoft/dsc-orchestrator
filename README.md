@@ -2,11 +2,9 @@
 
 Package and deliver DSCv3 configurations, then enforce them on a schedule across Windows VMs.
 
-**Status:** pre-release (v1 in development)
-
 ## Why
 
-DSCv3 is a capable configuration engine, but it does not orchestrate configuration across a fleet. DSC Orchestrator fills that gap by composing, packaging, delivering, and scheduling DSCv3 enforcement. Its design is derived from an orchestrator running in production on 10,000+ Windows VMs; this repository is a separate, pre-release implementation.
+DSCv3 is a capable configuration engine, but it does not orchestrate configuration across a fleet. DSC Orchestrator fills that gap by composing, packaging, delivering, and scheduling DSCv3 enforcement. Its design builds on an orchestrator running in production across 10,000+ Windows VMs.
 
 ## What it does
 
@@ -36,7 +34,7 @@ flowchart LR
 | --- | --- |
 | Build machine | PowerShell 7 (`pwsh`), `powershell-yaml` 0.4.12, and HTTPS access to PSGallery and GitHub release downloads. |
 | Azure | A selected subscription and Az PowerShell modules. Use [Create the Azure resources](docs/quickstart.md#step-3-create-the-azure-resources) to set up the Compute Gallery, storage account, and package container. |
-| Target VM | x64 Windows Server 2019 or later, or Windows 11 (tested on Windows 11 25H2), a healthy Azure VM Agent, and `tar.exe`. |
+| Target VM | x64 Windows Server 2019 or later, or Windows 11, a healthy Azure VM Agent, and `tar.exe`. |
 
 Install the build dependency in PowerShell 7 (CI and release builds use version 0.4.12):
 
