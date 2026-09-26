@@ -6,8 +6,13 @@ All notable changes to this project are documented here. This changelog follows 
 
 ## [1.0.1] - UNRELEASED
 
+### Security
+
+- An untrusted install folder is now moved aside and replaced with a fresh secure folder, instead of being cleaned in place.
+
 ### Fixed
 
+- DscRoot paths with trailing separators are normalized, and drive or share roots are rejected.
 - Configuration values keep their original string, number, or true/false type when written to YAML.
 - Inline dependency lists preserve commas inside resource references.
 - Failed upgrades restore the previous runtime so enforcement remains runnable.

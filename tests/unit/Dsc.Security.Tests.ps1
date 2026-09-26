@@ -82,6 +82,34 @@ BeforeAll {
         } $Acl
     }
 
+    function Set-UntrustedTestDirectoryAcl {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$Path
+        )
+
+        $acl = Get-Acl -LiteralPath $Path
+        $acl.SetAccessRuleProtection($true, $false)
+        $inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+            [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+        $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+        $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+                $currentSid,
+                [System.Security.AccessControl.FileSystemRights]::FullControl,
+                $inheritance,
+                [System.Security.AccessControl.PropagationFlags]::None,
+                [System.Security.AccessControl.AccessControlType]::Allow
+            ))
+        $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+                [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'),
+                [System.Security.AccessControl.FileSystemRights]::FullControl,
+                $inheritance,
+                [System.Security.AccessControl.PropagationFlags]::None,
+                [System.Security.AccessControl.AccessControlType]::Allow
+            ))
+        Set-Acl -LiteralPath $Path -AclObject $acl -ErrorAction Stop
+    }
+
     function Get-TopLevelSensitiveCommands {
         param([Parameter(Mandatory = $true)]$Ast)
 
@@ -249,7 +277,9 @@ Describe 'Dsc.Orchestrator install-root security' {
                 'Test-DscOrchestratorParentAcl',
                 'Get-DscOrchestratorPathItem',
                 'New-DscOrchestratorSecureAcl',
+                'Initialize-DscOrchestratorNative',
                 'New-DscOrchestratorSecureDirectory',
+                'New-DscOrchestratorRootDirectory',
                 'Set-DscOrchestratorSecureAcl',
                 'Remove-DscOrchestratorPathSafely',
                 'Initialize-DscOrchestratorSubdirectory',
@@ -281,7 +311,9 @@ Describe 'Dsc.Orchestrator install-root security' {
             'Test-DscOrchestratorParentAcl',
             'Get-DscOrchestratorPathItem',
             'New-DscOrchestratorSecureAcl',
+            'Initialize-DscOrchestratorNative',
             'New-DscOrchestratorSecureDirectory',
+            'New-DscOrchestratorRootDirectory',
             'Set-DscOrchestratorSecureAcl',
             'Remove-DscOrchestratorPathSafely',
             'Initialize-DscOrchestratorSubdirectory',
@@ -334,7 +366,22 @@ Describe 'Dsc.Orchestrator install-root security' {
             Mock New-DscOrchestratorSecureDirectory {
                 [System.IO.Directory]::CreateDirectory($Path) | Out-Null
             }
-            Mock Set-DscOrchestratorSecureAcl { }
+            Mock New-DscOrchestratorSecureAcl {
+                $acl = [System.Security.AccessControl.DirectorySecurity]::new()
+                $acl.SetAccessRuleProtection($true, $false)
+                $ownerSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+                $acl.SetOwner($ownerSid)
+                $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+                    $ownerSid,
+                    [System.Security.AccessControl.FileSystemRights]::FullControl,
+                    [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+                        [System.Security.AccessControl.InheritanceFlags]::ObjectInherit,
+                    [System.Security.AccessControl.PropagationFlags]::None,
+                    [System.Security.AccessControl.AccessControlType]::Allow
+                )
+                $acl.AddAccessRule($rule)
+                return $acl
+            }
         }
 
         & $parentScopeScript $script:SecurityModulePath $root
@@ -435,6 +482,51 @@ Describe 'Dsc.Orchestrator install-root security' {
     }
 
     Context 'filesystem reset behavior' {
+        It 'normalizes a trailing separator before checking the parent ACL and creating the root' {
+            $testDriveRoot = (Get-Item -LiteralPath $TestDrive -Force -ErrorAction Stop).FullName
+            $parent = Join-Path $testDriveRoot 'p'
+            $root = Join-Path $parent 'Root'
+            $rootWithSeparator = $root + [System.IO.Path]::DirectorySeparatorChar
+            $expectedParent = [System.IO.Path]::GetFullPath($parent)
+            $expectedRoot = [System.IO.Path]::GetFullPath($root)
+            New-Item -ItemType Directory -Path $parent -Force | Out-Null
+
+            InModuleScope Dsc.Security {
+                Mock Get-Acl {
+                    [System.Security.AccessControl.DirectorySecurity]::new()
+                }
+                Mock Test-DscOrchestratorParentAcl { $true }
+                Mock New-DscOrchestratorRootDirectory {
+                    [System.IO.Directory]::CreateDirectory($Path) | Out-Null
+                }
+            }
+
+            try {
+                Initialize-DscOrchestratorRoot -Path $rootWithSeparator
+
+                Should -Invoke -CommandName Get-Acl -ModuleName Dsc.Security -Times 1 -Exactly -ParameterFilter {
+                    $LiteralPath -eq $expectedParent
+                }
+                Should -Invoke -CommandName New-DscOrchestratorRootDirectory `
+                    -ModuleName Dsc.Security `
+                    -Times 1 `
+                    -Exactly `
+                    -ParameterFilter { $Path -ceq $expectedRoot }
+                Test-Path -LiteralPath $expectedRoot -PathType Container | Should -BeTrue
+            }
+            finally {
+                if (Test-Path -LiteralPath $root -PathType Container) {
+                    [System.IO.Directory]::Delete($root, $true)
+                }
+            }
+        }
+
+        It 'rejects a drive root as the DscRoot path without requiring elevation' {
+            {
+                Initialize-DscOrchestratorRoot -Path 'C:\'
+            } | Should -Throw -ExpectedMessage 'DscRoot must be a folder, not a drive or share root.'
+        }
+
         It 'creates a new directory with its ACL already applied' {
             $testDriveRoot = (Get-Item -LiteralPath $TestDrive -Force -ErrorAction Stop).FullName
             $path = Join-Path $testDriveRoot 'dsc-security-atomic-create'
@@ -478,16 +570,67 @@ Describe 'Dsc.Orchestrator install-root security' {
                 $rules[0].IdentityReference.Value | Should -Be $expectedOwner
             }
             finally {
-                Remove-DscOrchestratorPathSafely -Path $path
+                if (Test-Path -LiteralPath $path -PathType Container) {
+                    [System.IO.Directory]::Delete($path, $true)
+                }
             }
         }
 
-        It 'removes a junction inside an untrusted root without deleting the junction target' {
+        It 'quarantines an untrusted root and creates a secure empty root' -Skip:(-not $script:IsAdmin) {
+            $testDriveRoot = (Get-Item -LiteralPath $TestDrive -Force -ErrorAction Stop).FullName
+            $rootName = 'dsc-security-untrusted-reset'
+            $root = Join-Path $testDriveRoot $rootName
+            New-Item -ItemType Directory -Path $root -Force | Out-Null
+            Set-UntrustedTestDirectoryAcl -Path $root
+            Set-Content -LiteralPath (Join-Path $root 'planted.ps1') -Value 'untrusted' -NoNewline
+
+            InModuleScope Dsc.Security {
+                Mock Test-DscOrchestratorParentAcl { $true }
+                Mock Remove-DscOrchestratorPathSafely {
+                    throw 'Simulated quarantine cleanup failure.'
+                }
+            }
+
+            $cleanupWarnings = @()
+            Initialize-DscOrchestratorRoot -Path $root -WarningVariable cleanupWarnings
+
+            $rootAcl = Get-Acl -LiteralPath $root
+            $rootAcl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value |
+                Should -Be 'S-1-5-32-544'
+            $rootAcl.AreAccessRulesProtected | Should -BeTrue
+            $trusted = & $script:SecurityModule {
+                param($Acl)
+                Test-DscOrchestratorRootTrusted -Acl $Acl -IsDirectory $true -IsReparsePoint $false
+            } $rootAcl
+            $trusted | Should -BeTrue
+            (@(Get-ChildItem -LiteralPath $root -Force | ForEach-Object { $_.Name }) -join ',') |
+                Should -BeExactly 'logs'
+
+            $quarantines = @(
+                Get-ChildItem -LiteralPath $testDriveRoot -Force |
+                    Where-Object { $_.Name -like "$rootName.untrusted-*" }
+            )
+            $quarantines | Should -HaveCount 1
+            $quarantines[0].Name | Should -Match (
+                '^' + [regex]::Escape($rootName) + '\.untrusted-\d{14}-[0-9a-f]{8}$'
+            )
+            Get-Content -LiteralPath (Join-Path $quarantines[0].FullName 'planted.ps1') -Raw |
+                Should -Be 'untrusted'
+            ($cleanupWarnings -join '') | Should -Match 'left for an administrator'
+
+            $resetRows = @(Get-Content -LiteralPath (Join-Path $root 'logs\bootstrap.jsonl') |
+                ForEach-Object { $_ | ConvertFrom-Json })
+            $resetRows | Should -HaveCount 1
+            $resetRows[0].message | Should -Be 'DscRoot was untrusted and was reset.'
+        }
+
+        It 'removes a junction inside the quarantined tree without touching its target' -Skip:(-not $script:IsAdmin) {
             $testDriveRoot = (Get-Item -LiteralPath $TestDrive -Force -ErrorAction Stop).FullName
             $root = Join-Path $testDriveRoot 'dsc-security-untrusted-root'
             $target = Join-Path $testDriveRoot 'dsc-security-junction-target'
             $junction = Join-Path $root 'staging'
             New-Item -ItemType Directory -Path $root -Force | Out-Null
+            Set-UntrustedTestDirectoryAcl -Path $root
             New-Item -ItemType Directory -Path $target -Force | Out-Null
             Set-Content -LiteralPath (Join-Path $target 'sentinel.txt') -Value 'keep'
             Set-Content -LiteralPath (Join-Path $root 'planted.ps1') -Value 'untrusted'
@@ -495,21 +638,120 @@ Describe 'Dsc.Orchestrator install-root security' {
 
             InModuleScope Dsc.Security {
                 Mock Test-DscOrchestratorParentAcl { $true }
-                Mock Set-DscOrchestratorSecureAcl { }
             }
 
             Initialize-DscOrchestratorRoot -Path $root
 
-            Test-Path -LiteralPath $junction | Should -BeFalse
             Test-Path -LiteralPath (Join-Path $target 'sentinel.txt') | Should -BeTrue
-            Test-Path -LiteralPath (Join-Path $root 'planted.ps1') | Should -BeFalse
+            (@(Get-ChildItem -LiteralPath $root -Force | ForEach-Object { $_.Name }) -join ',') |
+                Should -BeExactly 'logs'
+            $quarantines = @(
+                Get-ChildItem -LiteralPath $testDriveRoot -Force |
+                    Where-Object { $_.Name -like 'dsc-security-untrusted-root.untrusted-*' }
+            )
+            foreach ($quarantine in $quarantines) {
+                Test-Path -LiteralPath (Join-Path $quarantine.FullName 'staging') |
+                    Should -BeFalse
+            }
             $resetRows = @(Get-Content -LiteralPath (Join-Path $root 'logs\bootstrap.jsonl') |
                 ForEach-Object { $_ | ConvertFrom-Json })
             $resetRows | Should -HaveCount 1
             $resetRows[0].message | Should -Be 'DscRoot was untrusted and was reset.'
         }
 
-        It 'removes a root junction itself without deleting its target contents' {
+        It 'holds a directory handle without share-delete' {
+            $directory = Join-Path $TestDrive 'dsc-security-pinned-directory'
+            $renamedDirectory = Join-Path $TestDrive 'dsc-security-pinned-directory-renamed'
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+            & $script:SecurityModule { Initialize-DscOrchestratorNative }
+            $handle = [DscOrchestrator.NativeFileSystem]::OpenNoFollow($directory)
+            try {
+                { Rename-Item -LiteralPath $directory -NewName 'dsc-security-pinned-directory-renamed' -ErrorAction Stop } |
+                    Should -Throw
+                Test-Path -LiteralPath $directory -PathType Container | Should -BeTrue
+                Test-Path -LiteralPath $renamedDirectory | Should -BeFalse
+            }
+            finally {
+                $handle.Dispose()
+            }
+        }
+
+        It 'fails safely when a new root appears after quarantine' {
+            $testDriveRoot = (Get-Item -LiteralPath $TestDrive -Force -ErrorAction Stop).FullName
+            $rootName = 'dsc-security-concurrent-root'
+            $root = Join-Path $testDriveRoot $rootName
+            New-Item -ItemType Directory -Path $root -Force | Out-Null
+            Set-UntrustedTestDirectoryAcl -Path $root
+            Set-Content -LiteralPath (Join-Path $root 'old.txt') -Value 'quarantined' -NoNewline
+
+            InModuleScope Dsc.Security {
+                Mock Test-DscOrchestratorParentAcl { $true }
+                Mock New-DscOrchestratorSecureDirectory {
+                    [System.IO.Directory]::CreateDirectory($Path) | Out-Null
+                    throw [System.ComponentModel.Win32Exception]::new(183, 'The file exists.')
+                }
+            }
+
+            {
+                Initialize-DscOrchestratorRoot -Path $root
+            } | Should -Throw -ExpectedMessage '*DscRoot was created concurrently; retry the installation.*'
+
+            Test-Path -LiteralPath $root -PathType Container | Should -BeTrue
+            $quarantines = @(
+                Get-ChildItem -LiteralPath $testDriveRoot -Force |
+                    Where-Object { $_.Name -like "$rootName.untrusted-*" }
+            )
+            $quarantines | Should -HaveCount 1
+            Get-Content -LiteralPath (Join-Path $quarantines[0].FullName 'old.txt') -Raw |
+                Should -Be 'quarantined'
+        }
+
+        It 'leaves an untrusted root intact when a locked child prevents quarantine' {
+            $testDriveRoot = (Get-Item -LiteralPath $TestDrive -Force -ErrorAction Stop).FullName
+            $rootName = 'dsc-security-locked-root'
+            $root = Join-Path $testDriveRoot $rootName
+            $lockedPath = Join-Path $root 'locked.txt'
+            $untouchedPath = Join-Path $root 'untouched.txt'
+            New-Item -ItemType Directory -Path $root -Force | Out-Null
+            Set-UntrustedTestDirectoryAcl -Path $root
+            Set-Content -LiteralPath $lockedPath -Value 'locked-content' -NoNewline
+            Set-Content -LiteralPath $untouchedPath -Value 'untouched-content' -NoNewline
+            $lockStream = [System.IO.File]::Open(
+                $lockedPath,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+
+            try {
+                InModuleScope Dsc.Security {
+                    Mock Test-DscOrchestratorParentAcl { $true }
+                }
+
+                {
+                    Initialize-DscOrchestratorRoot -Path $root
+                } | Should -Throw -ExpectedMessage '*Failed to quarantine a filesystem object by handle*'
+
+                Test-Path -LiteralPath $root -PathType Container | Should -BeTrue
+                Test-Path -LiteralPath $lockedPath -PathType Leaf | Should -BeTrue
+                Test-Path -LiteralPath $untouchedPath -PathType Leaf | Should -BeTrue
+                (@(Get-ChildItem -LiteralPath $root -Force | ForEach-Object { $_.Name } | Sort-Object) -join ',') |
+                    Should -BeExactly 'locked.txt,untouched.txt'
+                Test-Path -LiteralPath (Join-Path $root 'logs') | Should -BeFalse
+                @(
+                    Get-ChildItem -LiteralPath $testDriveRoot -Force |
+                        Where-Object { $_.Name -like "$rootName.untrusted-*" }
+                ) | Should -BeNullOrEmpty
+            }
+            finally {
+                $lockStream.Dispose()
+            }
+
+            Get-Content -LiteralPath $lockedPath -Raw | Should -BeExactly 'locked-content'
+            Get-Content -LiteralPath $untouchedPath -Raw | Should -BeExactly 'untouched-content'
+        }
+
+        It 'removes a root junction itself without deleting its target contents' -Skip:(-not $script:IsAdmin) {
             $testDriveRoot = (Get-Item -LiteralPath $TestDrive -Force -ErrorAction Stop).FullName
             $root = Join-Path $testDriveRoot 'dsc-security-root-junction'
             $target = Join-Path $testDriveRoot 'dsc-security-root-target'
@@ -519,10 +761,6 @@ Describe 'Dsc.Orchestrator install-root security' {
 
             InModuleScope Dsc.Security {
                 Mock Test-DscOrchestratorParentAcl { $true }
-                Mock Set-DscOrchestratorSecureAcl { }
-                Mock New-DscOrchestratorSecureDirectory {
-                    [System.IO.Directory]::CreateDirectory($Path) | Out-Null
-                }
             }
 
             Initialize-DscOrchestratorRoot -Path $root
@@ -568,6 +806,44 @@ Describe 'Dsc.Orchestrator install-root security' {
                 )
                 $rule.PropagationFlags | Should -Be ([System.Security.AccessControl.PropagationFlags]::None)
             }
+        }
+    }
+
+    Context 'post-extraction validation' {
+        It 'rejects a reparse point in the extracted install tree without following it' {
+            $installRoot = Join-Path $TestDrive 'dsc-security-extracted-install'
+            $target = Join-Path $TestDrive 'dsc-security-extracted-target'
+            New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
+            New-Item -ItemType Directory -Path $target -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $target 'sentinel.txt') -Value 'keep'
+            New-Item -ItemType Junction `
+                -Path (Join-Path $installRoot 'linked') `
+                -Target $target `
+                -ErrorAction Stop | Out-Null
+            & $script:SecurityModule { Initialize-DscOrchestratorNative }
+
+            $installerPath = Join-Path $script:WindowsAgentRoot 'Install-VmApplicationPackage.ps1'
+            $tokens = $null
+            $parseErrors = $null
+            $installerAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                $installerPath,
+                [ref]$tokens,
+                [ref]$parseErrors
+            )
+            $parseErrors | Should -BeNullOrEmpty
+            $validationFunction = Get-FunctionAst `
+                -Ast $installerAst `
+                -Name 'Test-DscOrchestratorExtractedInstallTree'
+            $validationFunction | Should -Not -BeNullOrEmpty
+            $runner = [scriptblock]::Create(@(
+                    'param([string]$InstallRoot)'
+                    $validationFunction.Extent.Text
+                    'Test-DscOrchestratorExtractedInstallTree -Path $InstallRoot'
+                ) -join [System.Environment]::NewLine)
+
+            { & $runner $installRoot } |
+                Should -Throw -ExpectedMessage '*contains a reparse point*'
+            Test-Path -LiteralPath (Join-Path $target 'sentinel.txt') | Should -BeTrue
         }
     }
 }

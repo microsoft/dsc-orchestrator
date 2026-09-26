@@ -12,7 +12,8 @@ param(
     [Parameter(Mandatory = $true)][string]$CallLog,
     [Parameter(Mandatory = $true)][string]$StateFile,
     [switch]$TaskExists,
-    [switch]$UnregisterFails
+    [switch]$UnregisterFails,
+    [switch]$WithLockedRuntimeFile
 )
 
 Set-StrictMode -Version Latest
@@ -20,33 +21,6 @@ $ErrorActionPreference = 'Stop'
 $env:REMOVE_HARNESS_LOG = $CallLog
 $env:REMOVE_HARNESS_STATE = $StateFile
 $env:REMOVE_HARNESS_UNREGISTER_FAILS = if ($UnregisterFails) { '1' } else { '0' }
-
-([ordered]@{
-    exists  = [bool]$TaskExists
-    enabled = [bool]$TaskExists
-    state   = if ($TaskExists) { 'Running' } else { 'Ready' }
-} | ConvertTo-Json -Compress) | Set-Content -LiteralPath $StateFile -Encoding UTF8
-
-function global:Get-RemoveHarnessTaskState {
-    Get-Content -LiteralPath $env:REMOVE_HARNESS_STATE -Raw | ConvertFrom-Json
-}
-
-function global:Set-RemoveHarnessTaskState {
-    param([Parameter(Mandatory = $true)][hashtable]$Change)
-    $state = Get-RemoveHarnessTaskState
-    $updated = [ordered]@{
-        exists  = [bool]$state.exists
-        enabled = [bool]$state.enabled
-        state   = [string]$state.state
-    }
-    foreach ($key in $Change.Keys) { $updated[$key] = $Change[$key] }
-    ($updated | ConvertTo-Json -Compress) | Set-Content -LiteralPath $env:REMOVE_HARNESS_STATE -Encoding UTF8
-}
-
-function global:Write-RemoveHarnessCall {
-    param([Parameter(Mandatory = $true)][string]$Name)
-    Add-Content -LiteralPath $env:REMOVE_HARNESS_LOG -Value (@{ call = $Name } | ConvertTo-Json -Compress)
-}
 
 function New-RemoveHarnessDirectoryAcl {
     $acl = [System.Security.AccessControl.DirectorySecurity]::new()
@@ -81,6 +55,52 @@ function global:Set-Acl {
         [Parameter(Mandatory = $true)][string]$LiteralPath,
         [Parameter(Mandatory = $true)][System.Security.AccessControl.ObjectSecurity]$AclObject
     )
+}
+
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$securityModulePath = Join-Path $repoRoot 'src\agent\windows\Modules\Dsc.Security.psm1'
+Import-Module -Name $securityModulePath -DisableNameChecking -ErrorAction Stop
+Dsc.Security\Initialize-DscOrchestratorRoot -Path $DscRoot
+
+$lockStream = $null
+if ($WithLockedRuntimeFile) {
+    $current = Join-Path $DscRoot 'current'
+    New-Item -ItemType Directory -Path $current -Force | Out-Null
+    $lockedPath = Join-Path $current 'locked-runtime.bin'
+    [System.IO.File]::WriteAllText($lockedPath, 'locked')
+    $lockStream = [System.IO.File]::Open(
+        $lockedPath,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::ReadWrite,
+        [System.IO.FileShare]::None
+    )
+}
+
+([ordered]@{
+    exists  = [bool]$TaskExists
+    enabled = [bool]$TaskExists
+    state   = if ($TaskExists) { 'Running' } else { 'Ready' }
+} | ConvertTo-Json -Compress) | Set-Content -LiteralPath $StateFile -Encoding UTF8
+
+function global:Get-RemoveHarnessTaskState {
+    Get-Content -LiteralPath $env:REMOVE_HARNESS_STATE -Raw | ConvertFrom-Json
+}
+
+function global:Set-RemoveHarnessTaskState {
+    param([Parameter(Mandatory = $true)][hashtable]$Change)
+    $state = Get-RemoveHarnessTaskState
+    $updated = [ordered]@{
+        exists  = [bool]$state.exists
+        enabled = [bool]$state.enabled
+        state   = [string]$state.state
+    }
+    foreach ($key in $Change.Keys) { $updated[$key] = $Change[$key] }
+    ($updated | ConvertTo-Json -Compress) | Set-Content -LiteralPath $env:REMOVE_HARNESS_STATE -Encoding UTF8
+}
+
+function global:Write-RemoveHarnessCall {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    Add-Content -LiteralPath $env:REMOVE_HARNESS_LOG -Value (@{ call = $Name } | ConvertTo-Json -Compress)
 }
 
 function global:Get-ScheduledTask {
@@ -128,8 +148,16 @@ function global:Get-CimInstance {
 }
 
 $global:LASTEXITCODE = 0
-& $RemoveScript -DscRoot $DscRoot -TaskName 'DscOrchestrator-Enforcement'
-if ($?) {
+try {
+    & $RemoveScript -DscRoot $DscRoot -TaskName 'DscOrchestrator-Enforcement'
+    $removeSucceeded = $?
+}
+finally {
+    if ($null -ne $lockStream) {
+        $lockStream.Dispose()
+    }
+}
+if ($removeSucceeded) {
     exit 0
 }
 $removeExitCode = if ($LASTEXITCODE -gt 0) { $LASTEXITCODE } else { 1 }

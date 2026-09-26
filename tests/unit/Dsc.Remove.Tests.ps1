@@ -1,5 +1,10 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
+# Evaluated at discovery so -Skip sees it. Creating an Administrators-owned folder requires elevation; runs on elevated CI.
+$script:IsAdmin = [System.Security.Principal.WindowsPrincipal]::new(
+    [System.Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
 BeforeAll {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
@@ -9,6 +14,10 @@ BeforeAll {
     $script:RunnerPath = Join-Path $script:RepoRoot 'tests\fixtures\Dsc.RemoveHarness.Runner.ps1'
     $script:ShellPath = (Get-Process -Id $PID -ErrorAction Stop).Path
     $script:WorkDirs = New-Object System.Collections.Generic.List[string]
+    # Creating an Administrators-owned folder requires elevation; runs on elevated CI.
+    $script:IsAdmin = [System.Security.Principal.WindowsPrincipal]::new(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    ).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
     function Invoke-RemoveHarness {
         param(
@@ -22,40 +31,26 @@ BeforeAll {
         $dscRoot = Join-Path $work 'DscOrchestrator'
         $callLog = Join-Path $work 'calls.jsonl'
         $stateFile = Join-Path $work 'task-state.json'
-        New-Item -ItemType Directory -Path $dscRoot -Force | Out-Null
+        New-Item -ItemType Directory -Path $work -Force | Out-Null
 
         $lockedPath = $null
-        $lockStream = $null
         if ($WithLockedRuntimeFile) {
-            $current = Join-Path $dscRoot 'current'
-            New-Item -ItemType Directory -Path $current -Force | Out-Null
-            $lockedPath = Join-Path $current 'locked-runtime.bin'
-            [System.IO.File]::WriteAllText($lockedPath, 'locked')
-            $lockStream = [System.IO.File]::Open(
-                $lockedPath,
-                [System.IO.FileMode]::Open,
-                [System.IO.FileAccess]::ReadWrite,
-                [System.IO.FileShare]::None
-            )
+            $lockedPath = Join-Path (Join-Path $dscRoot 'current') 'locked-runtime.bin'
         }
 
-        try {
-            $runnerArgs = @(
-                '-NoProfile', '-NonInteractive', '-File', $script:RunnerPath,
-                '-RemoveScript', $script:RemoveScript,
-                '-DscRoot', $dscRoot,
-                '-CallLog', $callLog,
-                '-StateFile', $stateFile
-            )
-            if ($TaskExists) { $runnerArgs += '-TaskExists' }
-            if ($UnregisterFails) { $runnerArgs += '-UnregisterFails' }
+        $runnerArgs = @(
+            '-NoProfile', '-NonInteractive', '-File', $script:RunnerPath,
+            '-RemoveScript', $script:RemoveScript,
+            '-DscRoot', $dscRoot,
+            '-CallLog', $callLog,
+            '-StateFile', $stateFile
+        )
+        if ($TaskExists) { $runnerArgs += '-TaskExists' }
+        if ($UnregisterFails) { $runnerArgs += '-UnregisterFails' }
+        if ($WithLockedRuntimeFile) { $runnerArgs += '-WithLockedRuntimeFile' }
 
-            $stdout = (& $script:ShellPath @runnerArgs 2>&1 | Out-String)
-            $exitCode = $LASTEXITCODE
-        }
-        finally {
-            if ($null -ne $lockStream) { $lockStream.Dispose() }
-        }
+        $stdout = (& $script:ShellPath @runnerArgs 2>&1 | Out-String)
+        $exitCode = $LASTEXITCODE
 
         $calls = @()
         if (Test-Path -LiteralPath $callLog) {
@@ -81,21 +76,21 @@ AfterAll {
 }
 
 Describe 'remove.ps1' {
-    It 'returns success when the task and runtime folders are already absent' {
+    It 'returns success when the task and runtime folders are already absent' -Skip:(-not $script:IsAdmin) {
         $result = Invoke-RemoveHarness
 
         $result.ExitCode | Should -Be 0
         $result.CallNames | Should -Not -Contain 'unregister'
     }
 
-    It 'returns a non-zero exit code when a runtime file cannot be deleted' {
+    It 'returns a non-zero exit code when a runtime file cannot be deleted' -Skip:(-not $script:IsAdmin) {
         $result = Invoke-RemoveHarness -WithLockedRuntimeFile
 
         $result.ExitCode | Should -Not -Be 0
         Test-Path -LiteralPath $result.LockedPath | Should -BeTrue
     }
 
-    It 'stops and disables a running task before unregistering it' {
+    It 'stops and disables a running task before unregistering it' -Skip:(-not $script:IsAdmin) {
         $result = Invoke-RemoveHarness -TaskExists
 
         $result.ExitCode | Should -Be 0
@@ -108,7 +103,7 @@ Describe 'remove.ps1' {
         $result.TaskState.enabled | Should -BeFalse
     }
 
-    It 'returns a non-zero exit code when task unregistration fails' {
+    It 'returns a non-zero exit code when task unregistration fails' -Skip:(-not $script:IsAdmin) {
         $result = Invoke-RemoveHarness -TaskExists -UnregisterFails
 
         $result.ExitCode | Should -Not -Be 0

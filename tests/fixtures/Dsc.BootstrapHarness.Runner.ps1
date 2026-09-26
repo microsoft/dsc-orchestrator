@@ -32,6 +32,8 @@ param(
     [switch]$TaskExists,
     [switch]$TaskInitiallyDisabled,
     [switch]$EnableFails,
+    [switch]$WithExistingRuntime,
+    [switch]$WithStalePreviousRuntime,
     [string]$Version = '1.0.0'
 )
 
@@ -47,13 +49,7 @@ $env:HARNESS_STATE         = $StateFile
 $env:HARNESS_FAIL_AT       = $FailAt
 $env:HARNESS_ENABLE_FAILS  = if ($EnableFails) { '1' } else { '0' }
 $env:HARNESS_ALLUSERS_ROOT = 'C:\Program Files\WindowsPowerShell\Modules'
-$env:HARNESS_DSC_ROOT      = [System.IO.Path]::GetFullPath($DscRoot)
-
-([ordered]@{
-    exists  = [bool]$TaskExists
-    enabled = -not [bool]$TaskInitiallyDisabled
-    state   = if ($TaskInitiallyDisabled) { 'Disabled' } else { 'Ready' }
-} | ConvertTo-Json -Compress) | Set-Content -LiteralPath $StateFile -Encoding UTF8
+$env:HARNESS_DSC_ROOT      = [System.IO.Path]::GetFullPath($DscRoot).TrimEnd('\', '/')
 
 function global:New-HarnessDirectoryAcl {
     param([string[]]$Sids)
@@ -80,7 +76,7 @@ function global:Get-Acl {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$LiteralPath)
 
-    $fullPath = [System.IO.Path]::GetFullPath($LiteralPath)
+    $fullPath = [System.IO.Path]::GetFullPath($LiteralPath).TrimEnd('\', '/')
     $parentPath = [System.IO.Directory]::GetParent($env:HARNESS_DSC_ROOT).FullName
     if ([string]::Equals($fullPath, $env:HARNESS_DSC_ROOT, [System.StringComparison]::OrdinalIgnoreCase)) {
         return New-HarnessDirectoryAcl -Sids @('S-1-5-18', 'S-1-5-32-544')
@@ -103,6 +99,31 @@ function global:Set-Acl {
         [Parameter(Mandatory = $true)][System.Security.AccessControl.ObjectSecurity]$AclObject
     )
 }
+
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$securityModulePath = Join-Path $repoRoot 'src\agent\windows\Modules\Dsc.Security.psm1'
+Import-Module -Name $securityModulePath -DisableNameChecking -ErrorAction Stop
+Dsc.Security\Initialize-DscOrchestratorRoot -Path $DscRoot
+
+# Seed runtime state only after the root has been established as trusted.
+if ($WithExistingRuntime) {
+    $existingCurrent = Join-Path $DscRoot 'current'
+    New-Item -ItemType Directory -Path (Join-Path $existingCurrent 'modules\StaleModule') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $existingCurrent 'Run-Enforcement.ps1') -Value 'OLD-RUNTIME-MARKER' -Force
+    Set-Content -LiteralPath (Join-Path $existingCurrent 'version.txt') -Value '0.0.1-old' -Force
+    Set-Content -LiteralPath (Join-Path $existingCurrent 'modules\StaleModule\StaleModule.psm1') -Value '# stale' -Force
+}
+if ($WithStalePreviousRuntime) {
+    $stalePrevious = Join-Path $DscRoot 'current.previous'
+    New-Item -ItemType Directory -Path $stalePrevious -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $stalePrevious 'stale-crash-marker.txt') -Value 'stale' -Force
+}
+
+([ordered]@{
+    exists  = [bool]$TaskExists
+    enabled = -not [bool]$TaskInitiallyDisabled
+    state   = if ($TaskInitiallyDisabled) { 'Disabled' } else { 'Ready' }
+} | ConvertTo-Json -Compress) | Set-Content -LiteralPath $StateFile -Encoding UTF8
 
 function global:Get-HarnessTaskState {
     Get-Content -LiteralPath $env:HARNESS_STATE -Raw | ConvertFrom-Json

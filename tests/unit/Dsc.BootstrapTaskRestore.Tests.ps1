@@ -7,6 +7,10 @@
 # (fixtures\Dsc.BootstrapHarness.Runner.ps1) -- bootstrap.ps1 has no injection seam and cannot
 # register a real task in CI.
 
+# Evaluated at discovery so -Skip sees it. Creating an Administrators-owned folder requires elevation; runs on elevated CI.
+$script:IsAdmin = [System.Security.Principal.WindowsPrincipal]::new(
+    [System.Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 BeforeAll {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
@@ -16,6 +20,10 @@ BeforeAll {
     $script:RunnerPath = Join-Path $script:RepoRoot 'tests\fixtures\Dsc.BootstrapHarness.Runner.ps1'
     $script:PwshPath    = (Get-Command pwsh -CommandType Application -ErrorAction Stop).Source
     $script:WorkDirs    = New-Object System.Collections.Generic.List[string]
+    # Creating an Administrators-owned folder requires elevation; runs on elevated CI.
+    $script:IsAdmin = [System.Security.Principal.WindowsPrincipal]::new(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    ).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
     function New-BootstrapFakePackage {
         param(
@@ -59,23 +67,8 @@ BeforeAll {
         $callLog = Join-Path $work 'calls.jsonl'
         $errFile = Join-Path $work 'error.txt'
         $stateFile = Join-Path $work 'task-state.json'
-        New-Item -ItemType Directory -Path $dscRoot -Force | Out-Null
+        New-Item -ItemType Directory -Path $work -Force | Out-Null
         New-BootstrapFakePackage -Path $package -ManifestVersion $ManifestVersion
-
-        # Seeding 'current\' is what makes Step 6 a genuine mid-swap: without it the removal is a
-        # no-op and the "old runtime already gone" state the restore exists for is never reached.
-        if ($WithExistingRuntime) {
-            $existingCurrent = Join-Path $dscRoot 'current'
-            New-Item -ItemType Directory -Path (Join-Path $existingCurrent 'modules\StaleModule') -Force | Out-Null
-            Set-Content -LiteralPath (Join-Path $existingCurrent 'Run-Enforcement.ps1') -Value 'OLD-RUNTIME-MARKER' -Force
-            Set-Content -LiteralPath (Join-Path $existingCurrent 'version.txt') -Value '0.0.1-old' -Force
-            Set-Content -LiteralPath (Join-Path $existingCurrent 'modules\StaleModule\StaleModule.psm1') -Value '# stale' -Force
-        }
-        if ($WithStalePreviousRuntime) {
-            $stalePrevious = Join-Path $dscRoot 'current.previous'
-            New-Item -ItemType Directory -Path $stalePrevious -Force | Out-Null
-            Set-Content -LiteralPath (Join-Path $stalePrevious 'stale-crash-marker.txt') -Value 'stale' -Force
-        }
 
         $runnerArgs = @(
             '-NoProfile', '-NonInteractive', '-File', $script:RunnerPath,
@@ -89,6 +82,8 @@ BeforeAll {
         if ($TaskExists)            { $runnerArgs += '-TaskExists' }
         if ($TaskInitiallyDisabled) { $runnerArgs += '-TaskInitiallyDisabled' }
         if ($EnableFails)           { $runnerArgs += '-EnableFails' }
+        if ($WithExistingRuntime)   { $runnerArgs += '-WithExistingRuntime' }
+        if ($WithStalePreviousRuntime) { $runnerArgs += '-WithStalePreviousRuntime' }
 
         $stdout = (& $script:PwshPath @runnerArgs 2>&1 | Out-String)
         $exitCode = $LASTEXITCODE
@@ -110,7 +105,11 @@ BeforeAll {
             Calls        = $calls
             CallNames    = @($calls | ForEach-Object { $_.call })
             Rows         = $rows
-            TaskState    = (Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json)
+            TaskState    = if (Test-Path -LiteralPath $stateFile) {
+                Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json
+            } else {
+                throw "Bootstrap harness runner exited ($exitCode) before writing its task state. Runner output: $stdout"
+            }
             DscRoot      = $dscRoot
             PackageRoot  = $package
         }
@@ -127,7 +126,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
 
     Context 'update flow, failure after the Step 5 disable' {
 
-        It 'rejects a PackageRoot manifest version that differs from -Version' {
+        It 'rejects a PackageRoot manifest version that differs from -Version' -Skip:(-not $script:IsAdmin) {
             $result = Invoke-BootstrapHarness -ManifestVersion '2.0.0'
 
             $result.ExitCode | Should -Be 3
@@ -136,7 +135,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             Test-Path -LiteralPath (Join-Path $result.DscRoot 'current') | Should -BeFalse
         }
 
-        It 'restores the task when the registration itself fails (Step 9, last statement in the window)' {
+        It 'restores the task when the registration itself fails (Step 9, last statement in the window)' -Skip:(-not $script:IsAdmin) {
             # Tightest boundary on the registration-complete flag: set it any earlier and this regresses.
             $result = Invoke-BootstrapHarness -FailAt 'register' -TaskExists -WithExistingRuntime
 
@@ -157,7 +156,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             @($result.Rows | Where-Object { $_.stage -eq 'success' }).Count | Should -Be 0
         }
 
-        It 'does not re-enable after Start-ScheduledTask fails, because registration already closed the window' {
+        It 'does not re-enable after Start-ScheduledTask fails, because registration already closed the window' -Skip:(-not $script:IsAdmin) {
             # Upper boundary of the same flag: once Register returned, the task is registered and
             # enabled, so a later Start failure owes no Enable call.
             $result = Invoke-BootstrapHarness -FailAt 'start' -TaskExists -WithExistingRuntime
@@ -174,7 +173,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             @($result.Rows | Where-Object { $_.stage -eq 'fatal' })[0].message | Should -BeLike '*task_restore=not_needed*'
         }
 
-        It 'restores a task an operator had already disabled when the runtime swap fails mid-replacement' {
+        It 'restores a task an operator had already disabled when the runtime swap fails mid-replacement' -Skip:(-not $script:IsAdmin) {
             # The restore keys off "a task pre-existed", not off "this run disabled an enabled one":
             # a successful bootstrap does not preserve an operator disable either (Register -Force).
             $result = Invoke-BootstrapHarness -FailAt 'swap' -TaskExists -TaskInitiallyDisabled -WithExistingRuntime
@@ -196,10 +195,12 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
     Context 'update flow, successful bootstrap' {
 
         BeforeAll {
-            $script:success = Invoke-BootstrapHarness -TaskExists -WithExistingRuntime
+            if ($script:IsAdmin) {
+                $script:success = Invoke-BootstrapHarness -TaskExists -WithExistingRuntime
+            }
         }
 
-        It 'completes and registers the task exactly once, with no unregister and no restore' {
+        It 'completes and registers the task exactly once, with no unregister and no restore' -Skip:(-not $script:IsAdmin) {
             $script:success.ExitCode | Should -Be 0
             @($script:success.CallNames | Where-Object { $_ -eq 'register' }).Count | Should -Be 1
             $script:success.CallNames | Should -Not -Contain 'unregister'
@@ -216,7 +217,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             Test-Path -LiteralPath (Join-Path $script:success.DscRoot 'current.previous') | Should -BeFalse
         }
 
-        It 'removes a stale current.previous directory left by a prior interrupted upgrade' {
+        It 'removes a stale current.previous directory left by a prior interrupted upgrade' -Skip:(-not $script:IsAdmin) {
             $result = Invoke-BootstrapHarness -WithExistingRuntime -WithStalePreviousRuntime
 
             $result.ExitCode | Should -Be 0
@@ -226,7 +227,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             Test-Path -LiteralPath (Join-Path $result.DscRoot 'current.previous') | Should -BeFalse
         }
 
-        It 'preserves the registration arguments and settings' {
+        It 'preserves the registration arguments and settings' -Skip:(-not $script:IsAdmin) {
             $register = @($script:success.Calls | Where-Object { $_.call -eq 'register' })[0]
             $register.force              | Should -BeTrue
             $register.execute            | Should -Be 'powershell.exe'
@@ -242,7 +243,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
             Test-Path -LiteralPath (Join-Path $script:success.DscRoot 'current\Run-Enforcement.ps1') | Should -BeTrue
         }
 
-        It 'quotes a DscRoot with a trailing separator without escaping the closing quote' {
+        It 'quotes a DscRoot with a trailing separator without escaping the closing quote' -Skip:(-not $script:IsAdmin) {
             $result = Invoke-BootstrapHarness -TaskExists -DscRootTrailingSeparator
             $register = @($result.Calls | Where-Object { $_.call -eq 'register' })[0]
             $escapedRoot = '"' + $result.DscRoot + '\\' + '"'
@@ -255,7 +256,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
 
     Context 'fresh install, no pre-existing task' {
 
-        It 'never fabricates a task when the registration itself fails' {
+        It 'never fabricates a task when the registration itself fails' -Skip:(-not $script:IsAdmin) {
             # Nothing pre-existed, so nothing may be conjured by an Enable against a name that was
             # never registered -- even though the run reached the far end of the window.
             $result = Invoke-BootstrapHarness -FailAt 'register'
@@ -272,7 +273,7 @@ Describe 'bootstrap.ps1 enforcement-task restoration' {
 
     Context 'restoration failure' {
 
-        It 'surfaces a failed restore without replacing the original bootstrap error' {
+        It 'surfaces a failed restore without replacing the original bootstrap error' -Skip:(-not $script:IsAdmin) {
             $result = Invoke-BootstrapHarness -FailAt 'swap' -TaskExists -EnableFails -WithExistingRuntime
 
             $result.ExitCode | Should -Be 3
