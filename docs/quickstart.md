@@ -22,10 +22,8 @@ The builder checks that the module is available; it does not enforce a version. 
 
 - Az PowerShell modules installed in the environment used to publish and deploy.
 - A selected Azure subscription. Create the Compute Gallery, storage account, and package container before publishing.
-- An x64 Windows Server 2019 or later, or Windows 11 (tested on Windows 11 25H2), with a healthy Azure VM Agent and `tar.exe`.
+- An x64 Windows Server 2019 or later, or Windows 11, with a healthy Azure VM Agent and `tar.exe`.
 - Resources from PowerShell DSC modules such as `PSDscResources` that run through the `Microsoft.Windows/WindowsPowerShell` adapter need the WinRM service running. WinRM is on by default on Windows Server and off by default on Windows 11.
-
-The Azure end-to-end test used Windows 11 Pro 25H2 (build 26200), Trusted Launch, a healthy Azure VM Agent, and no public IP. Windows Server was not tested.
 
 The blocks below assume you keep one PowerShell 7 session open from the repository root for steps 1-5. Run step 6 in an elevated PowerShell session on the target VM.
 
@@ -268,4 +266,4 @@ Delete the gallery version and package blob separately only after confirming the
   ```
 
 - **WSMan inspection hangs in a non-interactive session:** do not browse the `WSMan:\` drive while WinRM is stopped. PowerShell prompts to start WinRM, which can hang sessions such as Azure Run Command.
-- **Publish warns about `TreatFailureAsDeploymentFailure`:** Az.Compute 10.2.0 lacks the gallery-version `TreatFailureAsDeploymentFailure` parameter. Deploy still sets `treatFailureAsDeploymentFailure` on each VM's assignment, where Azure applies it (seen in testing). Whether a failing install fails the deployment wasn't tested, so check each VM after deploying (see [Verify on the VM](#step-6-verify-on-the-vm)).
+- **Publish warns about `TreatFailureAsDeploymentFailure`:** Az.Compute 10.2.0 doesn't expose this parameter when creating the gallery version. You can ignore the warning: the deploy step sets `treatFailureAsDeploymentFailure` on each VM's application assignment, where Azure applies it. Check each VM after deploying to confirm the application state (see [Verify on the VM](#step-6-verify-on-the-vm)).

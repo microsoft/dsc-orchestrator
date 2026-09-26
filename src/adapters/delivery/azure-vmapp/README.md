@@ -41,7 +41,7 @@ Use the narrowest resource scopes that satisfy these actions. The adapter never 
 
 ## Deployment failure reporting
 
-Az.Compute 10.2.0 lacks the gallery-version `TreatFailureAsDeploymentFailure` parameter. Deploy still sets `treatFailureAsDeploymentFailure` on each VM's assignment, where Azure applies it (seen in testing). Whether a failing install fails the deployment wasn't tested, so check each VM after deploying (see [Verify on the VM](../../../../docs/quickstart.md#step-6-verify-on-the-vm)).
+Az.Compute 10.2.0 doesn't expose the gallery-version `TreatFailureAsDeploymentFailure` parameter when creating a version, so Publish warns. You can ignore the warning: the deploy adapter sets `treatFailureAsDeploymentFailure` on each VM's application assignment, where Azure applies it. Check each VM after deploying to confirm the application state (see [Verify on the VM](../../../../docs/quickstart.md#step-6-verify-on-the-vm)).
 
 ## Usage
 

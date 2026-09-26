@@ -31,13 +31,13 @@ $reporting = .\Deploy-DscOrchestratorReporting.ps1 `
     -VMNames @('<vm-name-1>', '<vm-name-2>')
 ```
 
-Add `-WhatIf` to either command to preview its changes. Omit `-VMNames` to target every VM in the resource group. An empty resource group is logged and skipped successfully.
+Add `-WhatIf` to either command to show its planned changes. Omit `-VMNames` to target every VM in the resource group. An empty resource group is logged and skipped successfully.
 
 To include module logs, add `-EnableModuleLogs -ModuleLogPath '<absolute-path-to-module-jsonl-file>'` to the deployment command. Module logs are off by default, and the file path must be supplied when they are enabled.
 
 ## Check for data
 
-The Azure Monitor Agent reads the JSONL files directly. It only picks up lines written after it receives the collection rule, so existing results aren't sent. Force a run (`Start-ScheduledTask -TaskName 'DscOrchestrator-Enforcement'`) to produce new data. Ingestion typically takes several minutes; in testing, rows arrived about 7 minutes after a run.
+The Azure Monitor Agent reads the JSONL files directly. It only picks up lines written after it receives the collection rule, so existing results aren't sent. Force a run (`Start-ScheduledTask -TaskName 'DscOrchestrator-Enforcement'`) to produce new data. Ingestion usually takes 5–10 minutes.
 
 Bootstrap rows appear only after the next install or update.
 
