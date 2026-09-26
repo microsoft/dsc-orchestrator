@@ -1,0 +1,14 @@
+$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
+metadata:
+  platform:
+    dependsOn:
+      - machine-environment
+resources:
+  - name: advancedRegistryVerification
+    type: Microsoft.Windows/Registry
+    properties:
+      _exist: true
+      keyPath: HKLM\SOFTWARE\DscOrchestratorSampleAdvanced
+      valueName: Verification
+      valueData:
+        String: DSC Orchestrator advanced is ready

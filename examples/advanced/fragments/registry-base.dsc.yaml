@@ -1,0 +1,30 @@
+$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
+resources:
+  - name: advancedRegistryBaseline
+    type: Microsoft.Windows/Registry
+    properties:
+      _exist: true
+      keyPath: HKLM\SOFTWARE\DscOrchestratorSampleAdvanced
+      valueName: Baseline
+      valueData:
+        String: DSC Orchestrator advanced
+  - name: advancedRegistryReleaseLabel
+    type: Microsoft.Windows/Registry
+    dependsOn:
+      - "[resourceId('Microsoft.Windows/Registry', 'advancedRegistryBaseline')]"
+    properties:
+      _exist: true
+      keyPath: HKLM\SOFTWARE\DscOrchestratorSampleAdvanced
+      valueName: ReleaseLabel
+      valueData:
+        String: '{{ RegistryReleaseLabel }}'
+  - name: advancedRegistryOption
+    type: Microsoft.Windows/Registry
+    dependsOn:
+      - "[resourceId('Microsoft.Windows/Registry', 'advancedRegistryReleaseLabel')]"
+    properties:
+      _exist: true
+      keyPath: HKLM\SOFTWARE\DscOrchestratorSampleAdvanced\Options
+      valueName: Enabled
+      valueData:
+        DWord: 1

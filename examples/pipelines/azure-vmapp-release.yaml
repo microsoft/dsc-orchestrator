@@ -1,0 +1,122 @@
+trigger: none
+
+parameters:
+  # Orchestrator config path, relative to the repository root.
+  - name: configPath
+    type: string
+    default: examples/basic/dsc-orchestrator.config.json
+
+  # Supply the name of an authorized Azure Resource Manager service connection when queuing.
+  - name: azureServiceConnection
+    type: string
+    default: ''
+
+  # Optional subscription assertion; the service connection supplies the active Azure context.
+  - name: subscription
+    type: string
+    default: ''
+
+  # Resource module repository registered by the caller; credentials and private feeds stay caller-managed.
+  - name: resourceModuleRepositoryName
+    type: string
+    default: PSGallery
+
+  - name: storageAccountName
+    type: string
+    default: ''
+  - name: storageAccountResourceGroup
+    type: string
+    default: ''
+  - name: containerName
+    type: string
+    default: ''
+  - name: galleryResourceGroup
+    type: string
+    default: ''
+  - name: galleryName
+    type: string
+    default: ''
+  - name: applicationName
+    type: string
+    default: ''
+  - name: sourceRegion
+    type: string
+    default: ''
+
+  # Comma-separated Azure regions; blank discovers VM regions from targetResourceGroup.
+  - name: targetRegions
+    type: string
+    default: ''
+  - name: targetResourceGroup
+    type: string
+    default: ''
+
+  # Comma-separated VM names; blank targets every VM in targetResourceGroup.
+  - name: vmNames
+    type: string
+    default: ''
+
+stages:
+  - stage: Build
+    displayName: Build package ZIP
+    jobs:
+      - job: BuildPackage
+        displayName: Build Windows package
+        pool:
+          vmImage: windows-latest
+        steps:
+          - checkout: self
+            clean: true
+            displayName: Checkout source
+          - template: /pipelines/templates/build-package.yaml
+            parameters:
+              configPath: ${{ parameters.configPath }}
+              resourceModuleRepositoryName: ${{ parameters.resourceModuleRepositoryName }}
+
+  - stage: Publish
+    displayName: Publish gallery VM Application
+    dependsOn: Build
+    jobs:
+      - job: PublishVmApp
+        displayName: Publish VM Application version
+        pool:
+          vmImage: windows-latest
+        steps:
+          - checkout: self
+            clean: true
+            displayName: Checkout adapter scripts
+          - template: /pipelines/templates/publish-vmapp.yaml
+            parameters:
+              azureServiceConnection: ${{ parameters.azureServiceConnection }}
+              subscription: ${{ parameters.subscription }}
+              storageAccountName: ${{ parameters.storageAccountName }}
+              storageAccountResourceGroup: ${{ parameters.storageAccountResourceGroup }}
+              containerName: ${{ parameters.containerName }}
+              galleryResourceGroup: ${{ parameters.galleryResourceGroup }}
+              galleryName: ${{ parameters.galleryName }}
+              applicationName: ${{ parameters.applicationName }}
+              sourceRegion: ${{ parameters.sourceRegion }}
+              targetRegions: ${{ parameters.targetRegions }}
+              targetResourceGroup: ${{ parameters.targetResourceGroup }}
+
+  - stage: Deploy
+    displayName: Deploy to target VMs
+    dependsOn: Publish
+    variables:
+      vmAppVersionResourceId: $[ stageDependencies.Publish.PublishVmApp.outputs['publishVmApp.vmAppVersionResourceId'] ]
+    jobs:
+      - job: DeployVms
+        displayName: Deploy VM Application
+        pool:
+          vmImage: windows-latest
+        steps:
+          - checkout: self
+            clean: true
+            displayName: Checkout adapter scripts
+          - template: /pipelines/templates/deploy-vmapp.yaml
+            parameters:
+              azureServiceConnection: ${{ parameters.azureServiceConnection }}
+              subscription: ${{ parameters.subscription }}
+              vmAppVersionResourceId: $(vmAppVersionResourceId)
+              targetResourceGroup: ${{ parameters.targetResourceGroup }}
+              vmNames: ${{ parameters.vmNames }}

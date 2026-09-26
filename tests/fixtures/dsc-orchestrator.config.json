@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0",
+  "name": "sample-configuration",
+  "version": "1.2.3",
+  "group": "sample-group",
+  "role": "sample-role",
+  "parameters": {
+    "RegistryPath": "HKLM:\\SOFTWARE\\Example\\Application",
+    "Enabled": true,
+    "ConfigurationName": "ignored-value"
+  },
+  "fragments": [
+    {
+      "name": "baseline",
+      "path": "fragments/baseline.dsc.yaml"
+    }
+  ],
+  "modules": [
+    {
+      "name": "Example.Resources",
+      "version": "1.0.0"
+    }
+  ]
+}

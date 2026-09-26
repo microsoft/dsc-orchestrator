@@ -1,0 +1,10 @@
+$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
+resources:
+  - name: orchestratorSampleRegistryValue
+    type: Microsoft.Windows/Registry
+    properties:
+      _exist: true
+      keyPath: HKLM\SOFTWARE\DscOrchestratorSample
+      valueName: ManagedBy
+      valueData:
+        String: DSC Orchestrator sample

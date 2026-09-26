@@ -1,0 +1,75 @@
+parameters:
+  # Name of the caller-owned Azure Resource Manager service connection.
+  - name: azureServiceConnection
+    type: string
+
+  # Optional assertion against the subscription selected by the service connection.
+  - name: subscription
+    type: string
+    default: ''
+
+  # Resource ID emitted by the Publish stage.
+  - name: vmAppVersionResourceId
+    type: string
+
+  # Target resource group; a blank VM list targets every VM in the group.
+  - name: targetResourceGroup
+    type: string
+  - name: vmNames
+    type: string
+    default: ''
+
+steps:
+  - task: AzurePowerShell@5
+    displayName: Deploy VM Application to target VMs
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      ScriptType: InlineScript
+      Inline: |
+        $ErrorActionPreference = 'Stop'
+        $repoRoot = '$(Build.SourcesDirectory)'
+        $vmNames = @()
+        if (-not [string]::IsNullOrWhiteSpace($env:ORCHESTRATOR_VM_NAMES)) {
+            $vmNames = @(
+                $env:ORCHESTRATOR_VM_NAMES -split ',' |
+                    ForEach-Object { $_.Trim() } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+        }
+
+        $deployParameters = @{
+            ResourceGroupName = $env:ORCHESTRATOR_TARGET_RESOURCE_GROUP
+            VMAppVersionResourceId = $env:ORCHESTRATOR_VMAPP_VERSION_RESOURCE_ID
+        }
+        if ($vmNames.Count -gt 0) {
+            $deployParameters.VMNames = $vmNames
+        }
+        if (-not [string]::IsNullOrWhiteSpace($env:ORCHESTRATOR_SUBSCRIPTION)) {
+            $deployParameters.SubscriptionId = $env:ORCHESTRATOR_SUBSCRIPTION
+        }
+
+        $deployOutput = @(
+            & (Join-Path $repoRoot 'src\adapters\delivery\azure-vmapp\Deploy-DSCv3VMApp.ps1') @deployParameters
+        )
+        $deployResults = @(
+            $deployOutput | Where-Object {
+                $null -ne $_ -and
+                $_.PSObject.Properties.Name -contains 'Skipped'
+            }
+        )
+        if ($deployResults.Count -ne 1) {
+            throw 'Deploy-DSCv3VMApp.ps1 did not return exactly one deployment result.'
+        }
+        if ($deployResults[0].Skipped) {
+            Write-Host "No VMs were available in '$env:ORCHESTRATOR_TARGET_RESOURCE_GROUP'; the adapter skipped deployment successfully."
+        }
+      azurePowerShellVersion: LatestVersion
+      errorActionPreference: Stop
+      FailOnStandardError: false
+      pwsh: true
+      workingDirectory: '$(Build.SourcesDirectory)'
+    env:
+      ORCHESTRATOR_SUBSCRIPTION: ${{ parameters.subscription }}
+      ORCHESTRATOR_VMAPP_VERSION_RESOURCE_ID: ${{ parameters.vmAppVersionResourceId }}
+      ORCHESTRATOR_TARGET_RESOURCE_GROUP: ${{ parameters.targetResourceGroup }}
+      ORCHESTRATOR_VM_NAMES: ${{ parameters.vmNames }}

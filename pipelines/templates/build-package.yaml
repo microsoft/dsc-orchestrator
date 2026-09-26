@@ -1,0 +1,64 @@
+parameters:
+  # Path to the Orchestrator configuration, relative to the repository root unless absolute.
+  - name: configPath
+    type: string
+    default: examples/basic/dsc-orchestrator.config.json
+
+  # Name of a PowerShell repository already registered by the caller.
+  - name: resourceModuleRepositoryName
+    type: string
+    default: PSGallery
+
+steps:
+  - task: PowerShell@2
+    displayName: Build DSC Orchestrator package
+    inputs:
+      targetType: inline
+      pwsh: true
+      workingDirectory: '$(Build.SourcesDirectory)'
+      script: |
+        $ErrorActionPreference = 'Stop'
+        $repoRoot = '$(Build.SourcesDirectory)'
+        $configPath = $env:ORCHESTRATOR_CONFIG_PATH
+        if (-not [System.IO.Path]::IsPathRooted($configPath)) {
+            $configPath = Join-Path $repoRoot $configPath
+        }
+        $configPath = (Resolve-Path -LiteralPath $configPath -ErrorAction Stop).Path
+
+        $packageDirectory = Join-Path '$(Build.ArtifactStagingDirectory)' 'orchestrator-package'
+        if (Test-Path -LiteralPath $packageDirectory) {
+            Remove-Item -LiteralPath $packageDirectory -Recurse -Force -ErrorAction Stop
+        }
+        New-Item -ItemType Directory -Path $packageDirectory -Force -ErrorAction Stop | Out-Null
+
+        $yamlModule = Get-Module -ListAvailable -Name powershell-yaml |
+            Where-Object { $_.Version -eq [version]'0.4.12' } |
+            Select-Object -First 1
+        if (-not $yamlModule) {
+            Install-Module -Name powershell-yaml -RequiredVersion 0.4.12 `
+                -Repository PSGallery -Scope CurrentUser -Force -ErrorAction Stop
+        }
+        Import-Module -Name powershell-yaml -RequiredVersion 0.4.12 -Force -ErrorAction Stop
+
+        $package = & (Join-Path $repoRoot 'build\New-DscOrchestratorPackage.ps1') `
+            -ConfigPath $configPath `
+            -OutputPath $packageDirectory `
+            -RepositoryName $env:ORCHESTRATOR_MODULE_REPOSITORY
+
+        if (-not (Test-Path -LiteralPath $package.PackagePath -PathType Leaf)) {
+            throw "Package builder did not create the expected ZIP: $($package.PackagePath)"
+        }
+        $zipFiles = @(Get-ChildItem -LiteralPath $packageDirectory -Filter '*.zip' -File -ErrorAction Stop)
+        if ($zipFiles.Count -ne 1 -or $zipFiles[0].FullName -ne $package.PackagePath) {
+            throw "Expected exactly one package ZIP in '$packageDirectory'; found $($zipFiles.Count)."
+        }
+    env:
+      ORCHESTRATOR_CONFIG_PATH: ${{ parameters.configPath }}
+      ORCHESTRATOR_MODULE_REPOSITORY: ${{ parameters.resourceModuleRepositoryName }}
+
+  - task: PublishPipelineArtifact@1
+    displayName: Publish package ZIP artifact
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)\orchestrator-package'
+      artifact: orchestrator-package
+      publishLocation: pipeline

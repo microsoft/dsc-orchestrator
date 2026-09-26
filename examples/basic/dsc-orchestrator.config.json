@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "name": "basic-sample",
+  "version": "1.0.0",
+  "group": "basic-example",
+  "role": "sample-host",
+  "fragments": [
+    {
+      "name": "baseline",
+      "path": "fragments/baseline.dsc.yaml"
+    }
+  ]
+}
