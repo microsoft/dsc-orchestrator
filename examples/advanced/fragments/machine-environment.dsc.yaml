@@ -1,0 +1,17 @@
+$schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
+metadata:
+  platform:
+    dependsOn:
+      - registry-base
+resources:
+  - name: advancedMachineEnvironment
+    type: Microsoft.Windows/WindowsPowerShell
+    properties:
+      resources:
+        - name: dscOrchestratorSampleEnvironment
+          type: PSDscResources/Environment
+          properties:
+            Name: DSC_ORCHESTRATOR_SAMPLE
+            Value: advanced
+            Ensure: Present
+            Target: [Machine]

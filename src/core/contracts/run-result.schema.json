@@ -1,0 +1,396 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DSC Orchestrator JSONL result",
+  "description": "One JSON object per line from runs.jsonl or resources.jsonl.",
+  "oneOf": [
+    {
+      "title": "Run result",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "TimeGenerated",
+        "Computer",
+        "group",
+        "role",
+        "config_version",
+        "configuration_hash",
+        "dsc_exe_version",
+        "mode",
+        "trigger",
+        "outcome",
+        "total_resources",
+        "compliant_resources",
+        "non_compliant_count",
+        "failed_count",
+        "skipped_count",
+        "unevaluated_count",
+        "had_errors",
+        "test_duration",
+        "set_duration",
+        "verify_duration",
+        "total_duration",
+        "exit_code",
+        "error",
+        "non_compliant_resources",
+        "erroring_resources",
+        "reboot_count",
+        "enforcement_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "3.0"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "TimeGenerated": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "Computer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "config_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configuration_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dsc_exe_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "enforce",
+            "audit"
+          ]
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "initial",
+            "scheduled"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "compliant",
+            "drift_observed",
+            "drift_persisted",
+            "remediated",
+            "remediation_failed",
+            "resource_resolution_failed",
+            "skipped",
+            "error",
+            "aborted",
+            "reboot_pending",
+            "reboot_loop_detected"
+          ]
+        },
+        "total_resources": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compliant_resources": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "non_compliant_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unevaluated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "had_errors": {
+          "type": "boolean"
+        },
+        "test_duration": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "set_duration": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verify_duration": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "total_duration": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        },
+        "non_compliant_resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "erroring_resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "reboot_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "enforcement_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "Resource result",
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "TimeGenerated",
+        "Computer",
+        "group",
+        "role",
+        "config_version",
+        "configuration_hash",
+        "fragment",
+        "trigger",
+        "phase",
+        "adapter",
+        "adapter_instance_name",
+        "resource_type",
+        "resource_name",
+        "in_desired_state",
+        "reasons",
+        "action",
+        "event",
+        "result",
+        "had_errors",
+        "error_message",
+        "duration",
+        "duration_source",
+        "completion_kind"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "3.0"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "TimeGenerated": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "Computer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "config_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configuration_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "fragment": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "initial",
+            "scheduled"
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "test",
+            "verify",
+            "set"
+          ]
+        },
+        "adapter": {
+          "type": "string"
+        },
+        "adapter_instance_name": {
+          "type": "string"
+        },
+        "resource_type": {
+          "type": "string"
+        },
+        "resource_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "in_desired_state": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "phrase"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "phrase": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "test",
+            "set"
+          ]
+        },
+        "event": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "start",
+            "end"
+          ]
+        },
+        "result": {
+          "type": "string"
+        },
+        "had_errors": {
+          "type": "boolean"
+        },
+        "error_message": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "string"
+        },
+        "duration_source": {
+          "type": "string",
+          "enum": [
+            "per_resource",
+            "inherited_from_run"
+          ]
+        },
+        "completion_kind": {
+          "type": "string",
+          "enum": [
+            "",
+            "observed",
+            "synthetic"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

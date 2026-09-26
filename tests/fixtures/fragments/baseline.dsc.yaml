@@ -1,0 +1,10 @@
+resources:
+  - name: baselineWrapper
+    type: Microsoft.DSC/PowerShell
+    properties:
+      resources:
+        - name: managedRegistryValue
+          type: Microsoft.Windows/Registry
+          properties:
+            key: '{{ RegistryPath }}'
+            enabled: '{{ Enabled }}'

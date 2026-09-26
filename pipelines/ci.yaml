@@ -1,0 +1,56 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+jobs:
+  - job: CI
+    displayName: PowerShell CI
+    pool:
+      vmImage: windows-latest
+    strategy:
+      matrix:
+        WindowsPowerShell51:
+          runWithPwsh: 'false'
+          shellName: 'Windows PowerShell 5.1'
+        PowerShell7:
+          runWithPwsh: 'true'
+          shellName: 'PowerShell 7'
+      maxParallel: 2
+    steps:
+      - checkout: self
+        clean: true
+        displayName: Checkout
+
+      - task: PowerShell@2
+        displayName: Run CI ($(shellName))
+        inputs:
+          targetType: filePath
+          filePath: '$(Build.SourcesDirectory)\build\Invoke-CI.ps1'
+          arguments: '-ResultsDirectory "$(Agent.TempDirectory)\dsc-orchestrator-ci\$(Agent.JobName)"'
+          workingDirectory: '$(Build.SourcesDirectory)'
+          pwsh: $(runWithPwsh)
+
+      - task: PublishTestResults@2
+        displayName: Publish NUnit test results
+        condition: and(succeededOrFailed(), eq(variables['ciHasTestResults'], 'true'))
+        inputs:
+          testResultsFormat: NUnit
+          testResultsFiles: testResults.xml
+          searchFolder: '$(Agent.TempDirectory)\dsc-orchestrator-ci\$(Agent.JobName)'
+          failTaskOnFailedTests: true
+          failTaskOnMissingResultsFile: false
+          testRunTitle: 'DSC Orchestrator ($(shellName))'
+
+      - task: PublishCodeCoverageResults@2
+        displayName: Publish JaCoCo code coverage
+        condition: and(succeededOrFailed(), eq(variables['ciHasCoverage'], 'true'))
+        inputs:
+          summaryFileLocation: '$(Agent.TempDirectory)\dsc-orchestrator-ci\$(Agent.JobName)\coverage.xml'
+          pathToSources: '$(Build.SourcesDirectory)'
+          failIfCoverageEmpty: false
