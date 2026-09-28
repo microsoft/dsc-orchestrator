@@ -3957,6 +3957,12 @@
       "type": "row",
       "title": "Module logs (optional)",
       "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 124,
+        "w": 24,
+        "h": 1
+      },
       "panels": [
         {
           "id": 21,

@@ -20,6 +20,7 @@ All notable changes to this project are documented here. This changelog follows 
 - Failed upgrades restore the previous runtime so enforcement remains runnable.
 - Removal waits for a running enforcement run to finish, also removes the previous runtime folder, and reports failure when the scheduled task or runtime files cannot be removed.
 - The Grafana VM inventory panels load when the Resource Group filter is set to All.
+- The Grafana Module logs row stays in its place near the bottom instead of pushing the Current State panels down.
 
 ## [1.0.0] - 2026-09-26
 

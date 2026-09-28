@@ -103,6 +103,14 @@ Describe 'DSC Orchestrator Grafana dashboard' {
         }
     }
 
+    It 'gives every panel and row a grid position' {
+        $dashboard = $script:DashboardText | ConvertFrom-Json
+        $unplaced = @(Get-DashboardPanels -Panels @($dashboard.panels) | Where-Object { -not $_.gridPos } |
+            ForEach-Object { '{0} {1}' -f $_.id, $_.title })
+
+        $unplaced | Should -BeNullOrEmpty
+    }
+
     It 'lets multi-value variables expand All to real values instead of a literal wildcard' {
         $dashboard = $script:DashboardText | ConvertFrom-Json
         $wildcards = @($dashboard.templating.list | Where-Object {
