@@ -12,6 +12,7 @@ This optional DSC Orchestrator adapter deploys Log Analytics custom tables, a Da
 - Virtual Machine Contributor or equivalent VM identity and extension permissions on the target VMs
 - If the collection rule is in a separate scope, permission to read that rule when creating VM associations
 - An active Az PowerShell context with the intended subscription selected. The scripts never sign in or switch subscriptions.
+- Target VMs need outbound HTTPS to Azure Monitor and the collection endpoint, directly or through a proxy or private link. See [Azure Monitor Agent network configuration](https://learn.microsoft.com/azure/azure-monitor/agents/azure-monitor-agent-network-configuration).
 
 ## Deploy and connect
 
@@ -32,6 +33,8 @@ $reporting = .\Deploy-DscOrchestratorReporting.ps1 `
 ```
 
 Add `-WhatIf` to either command to show its planned changes. Omit `-VMNames` to target every VM in the resource group. An empty resource group is logged and skipped successfully.
+
+`Connect-DscOrchestratorReporting.ps1` sets up one VM at a time and takes about a minute per VM. For large fleets, run it per resource group in parallel, or use Azure Policy to install the Azure Monitor Agent and associate the collection rule.
 
 To include module logs, add `-EnableModuleLogs -ModuleLogPath '<absolute-path-to-module-jsonl-file>'` to the deployment command. Module logs are off by default, and the file path must be supplied when they are enabled.
 

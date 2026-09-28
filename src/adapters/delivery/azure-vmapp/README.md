@@ -39,6 +39,27 @@ Grant permissions to the identity represented by the caller's active Az context:
 
 Use the narrowest resource scopes that satisfy these actions. The adapter never changes the caller's selected context.
 
+## Azure quotas
+
+Two Compute Gallery quotas limit how many VM Applications you can publish. Both apply per subscription and per region, and both need an Azure support request to raise. Approval can take a week or more, so request increases before you reach them.
+
+| Quota | Default | What uses it | Request an increase before |
+| --- | --- | --- | --- |
+| `UnmanagedStorageAccountCount` | 64 | One for each VM Application in each region it is published to, including the source region. The publisher creates one replica per region. | About 50 VM Applications in any one region. |
+| `GalleryApplicationVersion` | 300 | Every application version in the region. | Applications × versions kept reaches about 250. With `KeepNewestCount 2`, that is about 125 applications. |
+
+With [one VM Application per resource group](#usage), each resource group of target VMs uses one storage account per region and about two versions.
+
+When a quota is reached, publishing fails with `OperationNotAllowed` and `...exceeding approved UnmanagedStorageAccountCount quota` or `...exceeding approved GalleryApplicationVersion quota`. The message includes the current limit and usage.
+
+To stay under the limits:
+
+- Run `Remove-OldDscV3GalleryVersions.ps1` after each release.
+- Publish only to regions that have target VMs.
+- Delete VM Applications you no longer use.
+
+Azure documents these limits in [VM Applications limits](https://learn.microsoft.com/azure/virtual-machines/vm-applications#considerations-and-current-limits-for-vm-applications) and [storage limits for VM Applications](https://learn.microsoft.com/azure/azure-resource-manager/management/azure-subscription-service-limits).
+
 ## Deployment failure reporting
 
 Az.Compute 10.2.0 doesn't expose the gallery-version `TreatFailureAsDeploymentFailure` parameter when creating a version, so Publish warns. You can ignore the warning: the deploy adapter sets `treatFailureAsDeploymentFailure` on each VM's application assignment, where Azure applies it. Check each VM after deploying to confirm the application state (see [Verify on the VM](../../../../docs/quickstart.md#step-6-verify-on-the-vm)).
@@ -97,6 +118,8 @@ $latest = .\src\adapters\delivery\azure-vmapp\Get-DSCv3LatestVMAppVersion.ps1 `
 ```
 
 `Remove-OldDscV3GalleryVersions.ps1` always retains the newest semantic versions and every assigned version. An empty VM resource group logs a skip and returns successfully. Deletion failures are reported and do not stop cleanup of other eligible versions.
+
+Use one VM Application per resource group of target VMs. Cleanup checks assignments in one resource group only, so a version still assigned to VMs in another resource group could be deleted.
 
 ## Outputs and behavior
 

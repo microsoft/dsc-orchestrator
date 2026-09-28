@@ -4,6 +4,11 @@ All notable changes to this project are documented here. This changelog follows 
 
 ## [Unreleased]
 
+### Added
+
+- Azure quota guidance for VM Application delivery: which Compute Gallery quotas limit publishing and when to request increases.
+- Azure Monitor reporting guidance for VM network access and connecting large fleets.
+
 ## [1.0.1] - 2026-09-28
 
 ### Security

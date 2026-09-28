@@ -89,6 +89,7 @@ The checked-in [basic configuration](examples/basic/dsc-orchestrator.config.json
 | [Package format](docs/package-format/README.md) | Authoring input and the produced ZIP layout. |
 | [Operations](docs/operations/README.md) | VM verification, local logs, and reboot handling. |
 | [Install-folder security](docs/operations/security.md) | How the agent protects its install folder. |
+| [Azure VM Application delivery](src/adapters/delivery/azure-vmapp/README.md) | Publish, deploy, and clean up versions, including the [Azure quotas](src/adapters/delivery/azure-vmapp/README.md#azure-quotas) to request before scaling out. |
 | [Reporting](src/adapters/reporting/README.md) | Optional Log Analytics reporting and Grafana dashboard. |
 | [Release pipeline](pipelines/README.md) | Azure Pipelines release example and permissions. |
 | [Contributing](CONTRIBUTING.md) | Local checks and contribution guidance. |
