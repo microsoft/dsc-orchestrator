@@ -17,6 +17,7 @@ All notable changes to this project are documented here. This changelog follows 
 - Inline dependency lists preserve commas inside resource references.
 - Failed upgrades restore the previous runtime so enforcement remains runnable.
 - Removal reports failure when a scheduled task or runtime files cannot be removed.
+- The Grafana VM inventory panels load when the Resource Group filter is set to All.
 
 ## [1.0.0] - 2026-09-26
 

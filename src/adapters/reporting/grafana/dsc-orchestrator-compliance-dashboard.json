@@ -4827,8 +4827,7 @@
         "sort": 1,
         "hide": 0,
         "skipUrlSync": false,
-        "definition": "resources\n| where type =~ 'microsoft.compute/virtualmachines'\n| where isnotempty(resourceGroup)\n| distinct resourceGroup\n| order by resourceGroup asc",
-        "allValue": "*"
+        "definition": "resources\n| where type =~ 'microsoft.compute/virtualmachines'\n| where isnotempty(resourceGroup)\n| distinct resourceGroup\n| order by resourceGroup asc"
       },
       {
         "name": "vm",

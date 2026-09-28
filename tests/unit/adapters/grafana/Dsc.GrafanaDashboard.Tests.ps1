@@ -103,6 +103,15 @@ Describe 'DSC Orchestrator Grafana dashboard' {
         }
     }
 
+    It 'lets multi-value variables expand All to real values instead of a literal wildcard' {
+        $dashboard = $script:DashboardText | ConvertFrom-Json
+        $wildcards = @($dashboard.templating.list | Where-Object {
+            $_.includeAll -and $_.PSObject.Properties['allValue'] -and $_.allValue -match '[*]'
+        } | ForEach-Object name)
+
+        $wildcards | Should -BeNullOrEmpty
+    }
+
     It 'contains no legacy identifiers' {
         $forbiddenTerms = @(
             'Dsc' + 'Fleet',
