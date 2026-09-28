@@ -4,11 +4,13 @@ All notable changes to this project are documented here. This changelog follows 
 
 ## [Unreleased]
 
-## [1.0.1] - UNRELEASED
+## [1.0.1] - 2026-09-28
 
 ### Security
 
 - An untrusted install folder is now moved aside and replaced with a fresh secure folder, instead of being cleaned in place.
+- Permission changes, renames, and deletes in the install folder now act on the folder that was checked, so it cannot be swapped out partway through.
+- Files unpacked during install are checked for links and must stay inside the install folder.
 
 ### Fixed
 
@@ -16,7 +18,7 @@ All notable changes to this project are documented here. This changelog follows 
 - Configuration values keep their original string, number, or true/false type when written to YAML.
 - Inline dependency lists preserve commas inside resource references.
 - Failed upgrades restore the previous runtime so enforcement remains runnable.
-- Removal reports failure when a scheduled task or runtime files cannot be removed.
+- Removal waits for a running enforcement run to finish, also removes the previous runtime folder, and reports failure when the scheduled task or runtime files cannot be removed.
 - The Grafana VM inventory panels load when the Resource Group filter is set to All.
 
 ## [1.0.0] - 2026-09-26
