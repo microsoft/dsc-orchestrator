@@ -248,6 +248,14 @@ function New-DscV3GalleryApplicationVersion {
         ErrorAction            = 'Stop'
     }
 
+    if ($versionCommand.Parameters.ContainsKey('Tag')) {
+        $versionParams['Tag'] = @{ EnableBlockBlobToPageBlobReplication = 'True' }
+    }
+    else {
+        Write-Warning ("New-AzGalleryApplicationVersion does not expose -Tag; new versions will count against the " +
+            "UnmanagedStorageAccountCount quota.")
+    }
+
     if ($versionCommand.Parameters.ContainsKey('Source') -and
         $versionCommand.Parameters.ContainsKey('ManageAction') -and
         (Get-Command New-AzGalleryApplicationVersionSource -ErrorAction SilentlyContinue) -and

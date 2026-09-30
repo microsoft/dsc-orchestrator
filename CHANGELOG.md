@@ -4,10 +4,16 @@ All notable changes to this project are documented here. This changelog follows 
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-30
+
 ### Added
 
-- Azure quota guidance for VM Application delivery: which Compute Gallery quotas limit publishing and when to request increases.
+- Azure quota and package-container access guidance for VM Application delivery.
 - Azure Monitor reporting guidance for VM network access and connecting large fleets.
+
+### Changed
+
+- Published VM Application versions are tagged with `EnableBlockBlobToPageBlobReplication=True`, so Azure replicates them as page blobs that don't count against the `UnmanagedStorageAccountCount` quota.
 
 ## [1.0.1] - 2026-09-28
 
@@ -42,6 +48,7 @@ First release.
 - Basic and advanced examples, a quickstart, and an Azure Pipelines release example.
 - CI for Windows PowerShell 5.1 and PowerShell 7.
 
-[Unreleased]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/microsoft/dsc-orchestrator/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/microsoft/dsc-orchestrator/releases/tag/v1.0.0
