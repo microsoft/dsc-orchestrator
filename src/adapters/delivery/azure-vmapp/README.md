@@ -37,6 +37,8 @@ Grant permissions to the identity represented by the caller's active Az context:
 - **Deploy:** read the gallery version and target resource group/VMs, and update the target VMs' application profiles (`Microsoft.Compute/virtualMachines/read` and `write`). Retry verification also reads VM instance view/status.
 - **Cleanup:** read VM application profiles and gallery applications/versions, and delete eligible old versions. Assignments are checked across every VM in `VMResourceGroupName` before any deletion; the script fails closed if it cannot determine that set.
 
+After granting the gallery identity access to a new container, its first publish can fail with "The blob referenced by source uri ... cannot be accessed" while the role takes effect; retry after a few minutes.
+
 Use the narrowest resource scopes that satisfy these actions. The adapter never changes the caller's selected context.
 
 ## Azure quotas
@@ -45,10 +47,15 @@ Two Compute Gallery quotas limit how many VM Applications you can publish. Both 
 
 | Quota | Default | What uses it | Request an increase before |
 | --- | --- | --- | --- |
-| `UnmanagedStorageAccountCount` | 64 | One for each VM Application in each region it is published to, including the source region. The publisher creates one replica per region. | About 50 VM Applications in any one region. |
+| `UnmanagedStorageAccountCount` | 64 | One for each untagged VM Application in each region it is published to (see below). | About 50 untagged VM Applications in any one region. |
 | `GalleryApplicationVersion` | 300 | Every application version in the region. | Applications × versions kept reaches about 250. With `KeepNewestCount 2`, that is about 125 applications. |
 
-With [one VM Application per resource group](#usage), each resource group of target VMs uses one storage account per region and about two versions.
+The publisher tags each new version with `EnableBlockBlobToPageBlobReplication=True`. Azure replicates tagged versions as page blobs, which don't count against `UnmanagedStorageAccountCount`.
+
+- The tag only takes effect when a version is created. Versions published without it keep counting until deleted, and deleting them may not free capacity right away.
+- Azure is still rolling the tag out. If the publisher warns that `-Tag` is unavailable, or publishing fails with an `UnmanagedStorageAccountCount` error, request an increase.
+
+With [one VM Application per resource group](#usage), each resource group of target VMs uses about two versions.
 
 When a quota is reached, publishing fails with `OperationNotAllowed` and `...exceeding approved UnmanagedStorageAccountCount quota` or `...exceeding approved GalleryApplicationVersion quota`. The message includes the current limit and usage.
 
