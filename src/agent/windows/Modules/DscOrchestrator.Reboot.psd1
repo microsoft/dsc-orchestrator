@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 @{
     RootModule        = 'Dsc.RebootRequest.psm1'
     ModuleVersion     = '1.0.0'

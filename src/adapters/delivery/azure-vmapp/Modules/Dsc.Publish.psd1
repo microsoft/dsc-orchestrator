@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 @{
     # Aggregate manifest for the publisher helper modules.
     # Publish-DSCv3VMApp.ps1 imports this one manifest; PowerShell loads every

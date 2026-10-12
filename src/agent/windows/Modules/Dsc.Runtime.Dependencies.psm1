@@ -1,4 +1,7 @@
-﻿# Dsc.Runtime.Dependencies — per-fragment status tracking and dependency gate logic.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.Runtime.Dependencies — per-fragment status tracking and dependency gate logic.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

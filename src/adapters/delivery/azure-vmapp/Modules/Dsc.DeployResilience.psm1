@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Post-deploy resilience helpers for Deploy-DSCv3VMApp: confirm a VM Application actually applied,

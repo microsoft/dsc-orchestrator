@@ -1,4 +1,7 @@
-﻿# Dsc.Prepare.Assemble — line-based fragment slicing + resource identifier extraction.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.Prepare.Assemble — line-based fragment slicing + resource identifier extraction.
 #
 # Both functions operate on string[] line buffers produced by the line-based
 # emit pipeline. Do not introduce structured YAML walking — see Dsc.Prepare.Emit

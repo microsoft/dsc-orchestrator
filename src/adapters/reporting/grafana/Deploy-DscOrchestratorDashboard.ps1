@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Deploys or updates the DSC Orchestrator compliance dashboard in Azure Managed Grafana.

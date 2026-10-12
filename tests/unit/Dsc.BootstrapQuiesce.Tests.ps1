@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 #Requires -Modules Pester
 
 # Covers the runtime-swap quiesce path: Stop-DscEnforcementProcess (kill the enforcement tree so the

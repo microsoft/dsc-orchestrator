@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 # Dsc.Publish.GalleryApp - gallery application and version create/get/recreate.
 
 Set-StrictMode -Version Latest

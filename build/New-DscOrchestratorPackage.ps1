@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Builds a complete DSC Orchestrator package from dsc-orchestrator.config.json.

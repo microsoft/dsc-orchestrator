@@ -1,4 +1,7 @@
-﻿<#
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+<#
 .SYNOPSIS
     Top-level wrapper filtering — selects which wrappers to feed into
     `dsc config set` based on observed drift + transitive dependsOn.

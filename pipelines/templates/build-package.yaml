@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 parameters:
   # Path to the Orchestrator configuration, relative to the repository root unless absolute.
   - name: configPath

@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 <#
 .SYNOPSIS
@@ -52,7 +55,7 @@ BeforeAll {
     # An adapter wrapper whose inner resource carries result.hadErrors but no InDesiredState — the
     # exact shape that Get-ResourceCompliance scores compliant (the exit-0 hole).
     function script:New-ErroredAdapterEntry {
-        param([string]$InnerName = 'HostsFileCorp', [bool]$HadErrors = $true)
+        param([string]$InnerName = 'HostsFile', [bool]$HadErrors = $true)
         [pscustomobject]@{
             name   = 'HostsWrapper'
             type   = 'Microsoft.DSC/PowerShell'
@@ -60,7 +63,7 @@ BeforeAll {
                 hadErrors   = $HadErrors
                 actualState = [pscustomobject]@{
                     result = @(
-                        [pscustomobject]@{ type = 'Corp/Hosts'; name = $InnerName; properties = [pscustomobject]@{} }
+                        [pscustomobject]@{ type = 'Example/Hosts'; name = $InnerName; properties = [pscustomobject]@{} }
                     )
                 }
             }
@@ -83,8 +86,8 @@ Describe 'Dependency gate — Test-ShouldSkipDueToDependency' {
 
     It 'skips when the dependency is unevaluated — never got a verdict (AC1)' {
         # Default-initialized status = Evaluated:$false, the state a parse/module failure leaves.
-        $t = New-GateTracker -Names @('HostsFileCorp', 'AgentHealthCheck')
-        Test-ShouldSkipDueToDependency -Tracker $t -DependsOn @('HostsFileCorp') -AuditOnly:$false | Should -BeTrue
+        $t = New-GateTracker -Names @('HostsFile', 'AgentHealthCheck')
+        Test-ShouldSkipDueToDependency -Tracker $t -DependsOn @('HostsFile') -AuditOnly:$false | Should -BeTrue
     }
 
     It 'skips when the dependency ended failed — had errors (AC1)' {
@@ -136,10 +139,10 @@ Describe 'Dependency gate — block telemetry (Get-BlockedByDetail) (AC4)' {
     }
 
     It 'reports the blocking dependency name and its terminal status' {
-        $t = New-GateTracker -Names @('HostsFileCorp', 'App')
-        $detail = @(Get-BlockedByDetail -Tracker $t -DependsOn @('HostsFileCorp'))
+        $t = New-GateTracker -Names @('HostsFile', 'App')
+        $detail = @(Get-BlockedByDetail -Tracker $t -DependsOn @('HostsFile'))
         $detail.Count | Should -Be 1
-        $detail[0].name   | Should -Be 'HostsFileCorp'
+        $detail[0].name   | Should -Be 'HostsFile'
         $detail[0].status | Should -Be 'unevaluated'
     }
 
@@ -216,7 +219,7 @@ Describe 'Exit-0 per-resource-error guard (Test-ParsedTestHadResourceErrors) (B2
                 hadErrors   = $false
                 actualState = [pscustomobject]@{
                     result = @(
-                        [pscustomobject]@{ type = 'Corp/Hosts'; name = 'HostsFileCorp'; hadErrors = $true; properties = [pscustomobject]@{} }
+                        [pscustomobject]@{ type = 'Example/Hosts'; name = 'HostsFile'; hadErrors = $true; properties = [pscustomobject]@{} }
                     )
                 }
             }
@@ -265,15 +268,15 @@ Describe 'Skip-row telemetry serialization (Write-FragmentSkippedRows) (AC4)' {
 
     It 'records blockedByDetail with name and terminal status for a small dependency list' {
         $log = Join-Path $TestDrive 'skip-small.jsonl'
-        $detail = @([pscustomobject]@{ name = 'HostsFileCorp'; status = 'unevaluated' })
+        $detail = @([pscustomobject]@{ name = 'HostsFile'; status = 'unevaluated' })
         # Bogus FragmentPath forces the single-row fallback (no YAML fixture needed).
         Write-FragmentSkippedRows -FragmentName 'AgentHealthCheck' -FragmentPath (Join-Path $TestDrive 'none.dsc.yaml') `
-            -BlockedBy @('HostsFileCorp') -BlockedByDetail $detail -Context $script:SkipCtx -ResourcesLogPath $log | Out-Null
+            -BlockedBy @('HostsFile') -BlockedByDetail $detail -Context $script:SkipCtx -ResourcesLogPath $log | Out-Null
         $row = Get-Content -LiteralPath $log | Select-Object -First 1 | ConvertFrom-Json
         $msg = $row.error_message | ConvertFrom-Json
         $msg.tag                     | Should -Be 'fragment_skipped'
-        $msg.blockedBy               | Should -Contain 'HostsFileCorp'
-        $msg.blockedByDetail[0].name   | Should -Be 'HostsFileCorp'
+        $msg.blockedBy               | Should -Contain 'HostsFile'
+        $msg.blockedByDetail[0].name   | Should -Be 'HostsFile'
         $msg.blockedByDetail[0].status | Should -Be 'unevaluated'
     }
 

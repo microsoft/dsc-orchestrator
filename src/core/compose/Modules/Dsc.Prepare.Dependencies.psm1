@@ -1,4 +1,7 @@
-﻿# Dsc.Prepare.Dependencies — cross-fragment dependency extraction, validation, and ordering.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.Prepare.Dependencies — cross-fragment dependency extraction, validation, and ordering.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

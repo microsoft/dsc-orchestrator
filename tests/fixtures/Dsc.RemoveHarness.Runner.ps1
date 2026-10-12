@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Child-process harness that runs remove.ps1 with recording scheduled-task and ACL fakes.

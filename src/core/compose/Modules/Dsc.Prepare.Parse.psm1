@@ -1,4 +1,7 @@
-﻿# Dsc.Prepare.Parse — merged-config JSON parsing into the render parameter map.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.Prepare.Parse — merged-config JSON parsing into the render parameter map.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

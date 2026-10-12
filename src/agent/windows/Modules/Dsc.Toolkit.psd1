@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 @{
     # Aggregate manifest for the agent runtime modules. The entry script
     # (Invoke-Enforcement.ps1) imports this one manifest; PowerShell then

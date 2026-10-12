@@ -1,4 +1,7 @@
-﻿# Dsc.YamlLines — line-based YAML enumeration primitives shared by build and runtime.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.YamlLines — line-based YAML enumeration primitives shared by build and runtime.
 #
 # Avoids powershell-yaml runtime dependency: ConvertFrom-Yaml mis-parses unquoted
 # {{ ParameterName }} tokens and is not staged to the VM.

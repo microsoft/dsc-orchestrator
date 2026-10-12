@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 <#
 .SYNOPSIS
@@ -71,15 +74,15 @@ BeforeAll {
             Duration  = 'PT0S'
             Results   = @(
                 [pscustomobject]@{
-                    name   = 'HostsFileCorpWrapper'
+                    name   = 'HostsFileWrapper'
                     type   = 'Microsoft.DSC/PowerShell'
                     result = [pscustomobject]@{
                         hadErrors   = $false
                         actualState = [pscustomobject]@{
                             result = @(
                                 [pscustomobject]@{
-                                    type       = 'EndSecHostsFile/EndSecHostsFile'
-                                    name       = 'HostsFileCorp'
+                                    type       = 'ExampleHostsFile/ExampleHostsFile'
+                                    name       = 'HostsFile'
                                     properties = [pscustomobject]@{ InDesiredState = $InDesiredState }
                                 }
                             )
@@ -102,14 +105,14 @@ BeforeAll {
             HadErrors = $false
             Results   = @(
                 [pscustomobject]@{
-                    name   = 'HostsFileCorpWrapper'
+                    name   = 'HostsFileWrapper'
                     type   = 'Microsoft.DSC/PowerShell'
                     result = [pscustomobject]@{
                         actualState = [pscustomobject]@{
                             result = @(
                                 [pscustomobject]@{
-                                    type       = 'EndSecHostsFile/EndSecHostsFile'
-                                    name       = 'HostsFileCorp'
+                                    type       = 'ExampleHostsFile/ExampleHostsFile'
+                                    name       = 'HostsFile'
                                     properties = [pscustomobject]@{
                                         Reasons = @(
                                             [pscustomobject]@{ Code = $Code; Phrase = $Phrase }
@@ -567,13 +570,13 @@ Describe 'Reason projection consumes the pre-set TestGet envelope' {
     # onto the non_compliant test row -- the exact telemetry bug in ADO 16372772 -- fails here.
 
     It 'stamps the harvested pre-set reason on the non_compliant test row (not the synthetic fallback)' {
-        $phrase = "Managed block 'Corp' drift: block not present; 155 missing"
+        $phrase = "Managed block 'Example' drift: block not present; 155 missing"
         $rows = @(Invoke-FinalStateEmit `
             -FinalTest (New-AdapterTestParsed -InDesiredState $false) `
             -FinalTestGet (New-AdapterGetParsed -Phrase $phrase -Code 'block_absent'))
 
         $rows.Count | Should -Be 1
-        $rows[0].resource_name | Should -Be 'HostsFileCorp'
+        $rows[0].resource_name | Should -Be 'HostsFile'
         $rows[0].result | Should -Be 'non_compliant'
         @($rows[0].reasons).Count | Should -Be 1
         $rows[0].reasons[0].code | Should -Be 'block_absent'
@@ -587,7 +590,7 @@ Describe 'Reason projection consumes the pre-set TestGet envelope' {
             -FinalTestGet $null)
 
         $rows.Count | Should -Be 1
-        $rows[0].resource_name | Should -Be 'HostsFileCorp'
+        $rows[0].resource_name | Should -Be 'HostsFile'
         $rows[0].result | Should -Be 'non_compliant'
         @($rows[0].reasons).Count | Should -Be 1
         $rows[0].reasons[0].code | Should -Be 'synthetic'
@@ -605,7 +608,7 @@ Describe 'Enforcement wires the convergence harvest into the emitted telemetry' 
     # real bundle staging, and the real post-convergence emit, so that revert now fails here.
 
     It 'carries the pre-set harvest from recovery.TestGet onto the emitted non_compliant row' {
-        $phrase = "Managed block 'Corp' drift: block not present; 155 missing"
+        $phrase = "Managed block 'Example' drift: block not present; 155 missing"
         $recovery = [pscustomobject]@{
             TestGet = New-AdapterGetParsed -Phrase $phrase -Code 'block_absent'
         }
@@ -617,7 +620,7 @@ Describe 'Enforcement wires the convergence harvest into the emitted telemetry' 
         $emit.StagedGet | Should -Be $recovery.TestGet
         $emit.Rows.Count | Should -Be 1
         $emit.Rows[0].phase | Should -Be 'test'
-        $emit.Rows[0].resource_name | Should -Be 'HostsFileCorp'
+        $emit.Rows[0].resource_name | Should -Be 'HostsFile'
         $emit.Rows[0].result | Should -Be 'non_compliant'
         @($emit.Rows[0].reasons).Count | Should -Be 1
         $emit.Rows[0].reasons[0].code | Should -Be 'block_absent'

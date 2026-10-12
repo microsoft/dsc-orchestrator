@@ -1,4 +1,7 @@
-﻿<#
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+<#
 .SYNOPSIS
     Projects per-real-resource compliance/diff/duration/reason from raw dsc.exe
     test/get/set JSON envelopes.

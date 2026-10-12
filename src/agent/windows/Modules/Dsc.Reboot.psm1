@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Orchestrator-owned reboot handling: registry inbox, restart-state state machine, and the
