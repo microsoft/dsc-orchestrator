@@ -1,4 +1,7 @@
-﻿<#
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+<#
 .SYNOPSIS
     `dsc config set` lifecycle observability — start/end progress events to
     resources.jsonl in real time.

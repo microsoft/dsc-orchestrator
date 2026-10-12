@@ -1,4 +1,7 @@
-﻿# Dsc.Bootstrap.ScheduledTask — Orchestrator enforcement scheduled-task quiesce/wait.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.Bootstrap.ScheduledTask — Orchestrator enforcement scheduled-task quiesce/wait.
 # Phase D extraction from bootstrap.ps1.
 
 Set-StrictMode -Version Latest

@@ -1,4 +1,7 @@
-﻿<#
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+<#
 .SYNOPSIS
     Removes DSCv3 enforcement from VM.
 

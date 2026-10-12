@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Normalizes an explicit name for use as an Azure Compute Gallery application name.

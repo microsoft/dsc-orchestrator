@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
 
 # WinPS 5.1 compatible. BOM-less UTF-8 keeps JSONL readers compatible.
 function Write-BootstrapJsonLine {

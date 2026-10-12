@@ -1,4 +1,7 @@
-﻿<#
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+<#
 .SYNOPSIS
     Process-context primitives for DSCv3 enforcement: identity, config version,
     stderr write.

@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 # Dsc.Publish.Blob - package upload and blob URI validation.
 
 Set-StrictMode -Version Latest

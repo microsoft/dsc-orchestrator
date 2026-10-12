@@ -1,4 +1,7 @@
-﻿# Dsc.Prepare.Validate — line-based YAML / token / wrapper-structure asserters.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.Prepare.Validate — line-based YAML / token / wrapper-structure asserters.
 #
 # All asserters operate line-by-line on raw fragment content. Do NOT swap any
 # of these for a structured YAML walker — unquoted whole-scalar

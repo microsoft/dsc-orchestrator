@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     CI/local entry point for the DSC Orchestrator Pester v5 unit suite.

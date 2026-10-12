@@ -1,4 +1,7 @@
-﻿<#
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+<#
 .SYNOPSIS
     Reason synthesis from `dsc config get` envelopes.
 .DESCRIPTION

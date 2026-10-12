@@ -1,4 +1,7 @@
-﻿<#
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+<#
 .SYNOPSIS
     JSONL log sinks (runs.jsonl, resources.jsonl) and rotation.
 .DESCRIPTION

@@ -1,4 +1,7 @@
-﻿# Dsc.Prepare.Emit — line-based YAML scalar/line emit + render-token substitution.
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+# Dsc.Prepare.Emit — line-based YAML scalar/line emit + render-token substitution.
 #
 # Composer is line-based on purpose: powershell-yaml / yq mis-parse unquoted
 # whole-scalar `{{ ParameterName }}` tokens as flow mappings. Do not introduce

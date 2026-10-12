@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 #Requires -Modules Pester
 
 # Bootstrap disable-window contract: Step 5 disables the named enforcement task and only a

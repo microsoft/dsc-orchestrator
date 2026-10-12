@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 @description('Full resource ID of the Log Analytics workspace that receives the JSONL streams.')
 param workspaceResourceId string
 

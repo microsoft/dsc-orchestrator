@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 $schema: https://aka.ms/dsc/schemas/v3/bundled/config/document.json
 resources:
   - name: advancedRegistryBaseline

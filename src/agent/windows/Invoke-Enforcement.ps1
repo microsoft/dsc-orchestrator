@@ -1,4 +1,6 @@
-﻿
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 [CmdletBinding(SupportsShouldProcess)]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Runtime progress is retained for the scheduled-task transcript; run and resource details are also recorded as JSONL.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '', Justification='GC_AppContext is an intentional process-global breadcrumb (current fragment name, "" between fragments) used as ambient run context for crash/diagnostic correlation; scoped Global by design and set only at fragment boundaries.')]

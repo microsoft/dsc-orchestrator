@@ -1,4 +1,7 @@
-﻿@{
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+@{
     # Aggregate manifest for the Phase D bootstrap split.
     # bootstrap.ps1 imports this manifest via a $PSScriptRoot-relative absolute
     # path; PowerShell loads each .psm1 as a nested module and merges exports

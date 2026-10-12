@@ -1,4 +1,7 @@
-﻿@{
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+@{
     # Aggregate manifest for the fragment-renderer module split.
     # New-DSCv3PreparedFragments.ps1 imports this manifest; PowerShell loads
     # the listed .psm1 files as nested modules and merges their exports into

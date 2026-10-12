@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 resources:
   - name: baselineWrapper
     type: Microsoft.DSC/PowerShell

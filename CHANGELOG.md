@@ -4,6 +4,13 @@ All notable changes to this project are documented here. This changelog follows 
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-12
+
+### Changed
+
+- Every source file now starts with the Microsoft copyright and MIT license header, and the LICENSE file names the project.
+- Test fixtures use neutral example names.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added
@@ -48,7 +55,8 @@ First release.
 - Basic and advanced examples, a quickstart, and an Azure Pipelines release example.
 - CI for Windows PowerShell 5.1 and PowerShell 7.
 
-[Unreleased]: https://github.com/microsoft/dsc-orchestrator/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/microsoft/dsc-orchestrator/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/microsoft/dsc-orchestrator/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/microsoft/dsc-orchestrator/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/microsoft/dsc-orchestrator/releases/tag/v1.0.0

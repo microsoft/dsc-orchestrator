@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 # Evaluated at discovery so -Skip sees it. Creating an Administrators-owned folder requires elevation; runs on elevated CI.
